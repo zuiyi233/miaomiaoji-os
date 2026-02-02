@@ -1,0 +1,42 @@
+app:
+  env: development
+  name: miaomiaoji-os
+  debug: true
+
+server:
+  port: 8080
+  read_timeout: 30
+  write_timeout: 30
+  max_header_bytes: 1048576
+
+database:
+  type: sqlite
+  sqlite_path: "./data.db"
+  host: localhost
+  port: 5432
+  user: postgres
+  password: ""
+  database: novel_agent_os
+  sslmode: disable
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 300
+  log_level: info
+
+jwt:
+  secret: "your-super-secret-key-change-in-production"
+  expire_hour: 24
+  issuer: novel-agent-os
+
+logging:
+  level: debug
+  filename: "./logs/app.log"
+  max_size: 100
+  max_backups: 7
+  max_age: 30
+  compress: true
+  console: true
+
+rate_limit:
+  requests_per_second: 100
+  burst: 200
