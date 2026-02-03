@@ -5,9 +5,9 @@ docs/api.md 已包含：
 JWT：/api/v1/auth/login|register|refresh|logout
 Projects：列表/创建/更新/删除/导出
 Plugins：列表/启用禁用/ping/能力/call/invoke-async + Jobs（轮询）
-并明确：异步调用可通过 SSE 订阅 session_id 获取进度（api.md:L501-L526）。
+并明确：异步调用可通过 SSE 订阅 session_id 获取进度（见 docs/api.md：异步调用插件/Jobs/SSE 章节）。
 
-补充：本仓库后端已实现 Sessions / Steps / SSE 路由（以 internal/router/router.go 为准），但 docs/api.md 尚未整理成对应章节。
+补充：本仓库后端已实现 Sessions / Steps / SSE 路由，docs/api.md 已补齐对应章节；联调前仍需要以 internal/router/router.go 与各 handler 的实际请求/响应为最终准绳。
 0.2 参考项目里可复用的成熟实现（对标竞品 MuMuAINovel）
 在 参考项目/MuMuAINovel-main/frontend 里已有完整的 SSE 工具实现：
 
@@ -23,7 +23,7 @@ SSEPostClient（fetch POST + ReadableStream 手动解析 event: + data:）
 0.4 模板前端主工程路径（当前仓库现状）
 目前在主仓库根目录（h:\miaomiaoji-os）及非“参考项目”目录下，未发现前端工程标识（例如 package.json / vite.config.* / next.config.* / index.html 等）。
 当前可识别的前端工程均位于：h:\miaomiaoji-os\参考项目\ 下（例如 参考项目/1.28-novel-agent-os (5)）。
-结论：在开始第 4 阶段前端建设前，需要先明确“模板前端主工程”要落地到主仓库的哪个目录（例如 /web、/frontend、/ui），并完成拷贝/迁移与基础构建可运行。
+结论：在开始第 4 阶段前端建设前，需要先明确“模板前端主工程”要落地到主仓库的哪个目录（例如 /web、/frontend、/ui），并完成拷贝/迁移与基础构建可运行。建议默认落地目录为 /web（目录名统一可减少 AI 误判与重复搭建）。
 
 0.5 Phase4 开工前置（必须先完成，再开始 M4 UI/联调）
 模板前端是“起步骨架”，不能直接照搬上线；Phase4 的前置不是“原样迁移”，而是“迁入并完成基础改造后，才进入 M4 UI/联调”。
@@ -36,7 +36,46 @@ SSEPostClient（fetch POST + ReadableStream 手动解析 event: + data:）
    - 配置：在前端侧提供可配置的 API_BASE_URL（以及需要时的 SSE_BASE_URL），确保非硬编码，便于后续联调与部署切换。
 3) 本地可运行：完成依赖安装、开发服务器启动，能在浏览器打开并进入基础页面（至少到登录页或项目列表页）。
 4) 最小联调验证：完成一次真实后端联调闭环（登录 → 获取当前用户信息 /users/profile 或拉取项目列表 /projects）。
-5) 同步补齐后端契约文档：在 docs/api.md 中补齐 Sessions/Steps/SSE 章节，以 internal/router/router.go 与 handler 的请求/响应为准。
+5) 同步核对后端契约文档：确保 docs/api.md 与 internal/router/router.go、各 handler 的请求/响应保持一致（以代码为准）。
+
+0.6 AI 协作强约束：前端必须复用模板（禁止另起炉灶）
+目的：避免 AI 自行搭建“第二套前端工程/第二套组件库/第二套路由与请求层”，导致目录混乱、风格不一致、联调成本暴增。
+
+硬约束（必须遵守）
+- 只允许在“模板前端主工程目录”内工作（建议 /web）；禁止在仓库根目录或其它目录新建前端工程（例如新增 package.json、vite.config.*、next.config.*、src/ 等）。
+- 禁止引入新的前端框架或脚手架（例如 Next.js、Umi、Angular、Vue），禁止把 Vite+React 替换为其它栈。
+- 禁止“重写一套”Auth/Projects/HTTP Client/SSE Client：必须以模板现有目录结构与实现为底座改造（允许重构，但必须在原工程内完成，且保留可运行状态）。
+- 禁止在“参考项目/”目录里直接开发交付；参考项目只用于对照与拷贝（复制粘贴到 /web 后再改造）。
+
+允许范围（在模板内做的改造）
+- 将模板中基于 localStorage/mock 的 Auth/Project/服务层替换为真实后端 API（不改变页面 IA 与组件复用策略）。
+- 按需补齐模板缺失的路由方案、页面壳、请求层与 SSE 适配器，但必须与模板已有代码风格、状态管理方式一致。
+- 允许新增少量必要依赖，但必须满足“最小增量”：优先复用模板已有库；新增依赖必须直接服务于联调闭环（例如路由库、SSE stream 解析）。
+
+验收标准（DoD：用于判断是否“确实复用模板”）
+- 仓库内仅存在一个被维护的前端主工程目录（建议 /web），且能独立安装依赖并启动开发服务器。
+- 未出现第二套前端入口/构建体系（例如新增 next.config.*、另一个 package.json、另一个 vite.config.*）。
+- 页面与组件均落在模板工程内，且沿用模板既有 UI/布局体系（不是重新做一套全新 UI）。
+- 至少完成一次真实联调闭环：登录 → /users/profile → /projects 列表（或任一后端真实接口闭环）。
+
+0.7 模板与后端不匹配点：差异清单与改造顺序（必须先做）
+背景：模板是“前端优先”的骨架，默认用 mock 数据与 localStorage Context；后端是“统一响应 + JWT + 分页参数差异 + SSE 鉴权约束”。不先做底座改造，后续工作流/SSE 会被反复返工。
+
+差异清单（常见踩坑）
+- 统一响应格式：后端统一返回 {code,message,data}；分页通常在 data.page_info，但部分接口（例如 plugins/sessions）使用 data.{plugins|sessions,total,page,page_size}。前端需要在 API Client 层做统一 unwrap/normalize。
+- 鉴权：后端使用 JWT Bearer Token；401 需要走 /api/v1/auth/refresh 刷新，失败则清空 token 并跳转登录。
+- 项目与会话：模板的 Project/Session 可能是本地 mock；后端为 /api/v1/projects 与 /api/v1/sessions（分页参数与字段以 docs/api.md 为准）。
+- SSE 鉴权与参数：订阅端点为 GET /api/v1/sse/stream?session_id=xxx 且受 JWTAuth 保护；EventSource 不支持自定义 Authorization header，若必须走 Bearer Header，则需要 fetch + ReadableStream 解析 SSE。
+- SSE 事件类型：step.appended / quality.checked / export.ready / error（事件体为 {type,data,timestamp}）。前端输出面板需支持增量追加（chunk append），并在断线重连时保留已累积内容。
+- CORS/同域策略：若前后端分域，需确认 CORS、Cookie/Authorization 传递策略与 SSE 是否可用（尤其是 EventSource 的跨域限制）。
+
+改造顺序（强烈建议按顺序推进，避免边做业务边返工）
+1) 固化“模板前端主工程目录”（建议 /web）并确保可运行（npm install + dev server）。
+2) 配置层：引入 API_BASE_URL/SSE_BASE_URL 等环境变量读取方案，禁止硬编码。
+3) 请求层：实现统一 API Client（自动注入 Authorization、统一处理 code/message/data、401 自动 refresh）。
+4) Auth：将模板 AuthContext/mock 替换为对接 /api/v1/auth/login|register|refresh|logout + /api/v1/users/profile 的真实流程。
+5) Projects：将模板项目列表/详情的 mock 替换为 /api/v1/projects 的真实接口（先做列表即可）。
+6) SSE：实现 Stream Adapter（EventSource + fetch-stream 两套适配），上层对外暴露一致事件回调，再接入工作流输出面板。
 
 1. M4 交付范围（In Scope）与不做项（Out Scope）
 1.1 M4 必交付（功能闭环）
@@ -292,3 +331,195 @@ D5：全链路回归与体验修补
 联调注意
 - pkg/sse.NewErrorEvent 当前会直接调用 err.Error()，若 err 为 nil 会触发 panic；sse_handler.go:99 默认分支 NewErrorEvent("Unknown event type", nil) 存在潜在问题。
 - 建议联调时优先使用 type=step/quality/export，或先修复后端 NewErrorEvent 的 nil 安全性。
+
+## 9. 任务依赖关系图
+
+```mermaid
+graph TD
+    A[前端工程迁移与基础改造] --> B[API 契约文档补齐]
+    B --> C[工作流基础骨架]
+    C --> D[SSE Client 与输出面板]
+    D --> E[Plugins 联调]
+    D --> F[Files/Corpus 联调]
+    D --> G[Settlements 联调]
+    E --> H[全链路回归测试]
+    F --> H
+    G --> H
+    H --> I[性能优化与体验打磨]
+    
+    subgraph "并行开发"
+        E
+        F
+        G
+    end
+    
+    subgraph "关键路径"
+        A --> B --> C --> D --> H --> I
+    end
+```
+
+**依赖关系说明：**
+
+| 任务 | 前置依赖 | 并行任务 | 后续任务 |
+|------|---------|---------|---------|
+| 前端工程迁移 | 无 | 无 | API 契约补齐 |
+| API 契约补齐 | 前端工程迁移 | 无 | 工作流骨架 |
+| 工作流骨架 | API 契约补齐 | 无 | SSE Client |
+| SSE Client | 工作流骨架 | 无 | 配套模块联调 |
+| Plugins 联调 | SSE Client | Files/Corpus/Settlements | 全链路测试 |
+| Files/Corpus 联调 | SSE Client | Plugins/Settlements | 全链路测试 |
+| Settlements 联调 | SSE Client | Plugins/Files/Corpus | 全链路测试 |
+| 全链路测试 | 所有联调完成 | 无 | 性能优化 |
+| 性能优化 | 全链路测试 | 无 | 无 |
+
+## 10. 资源估算与优先级
+
+### 10.1 任务优先级矩阵
+
+| 优先级 | 任务 | 工作量（人日） | 风险等级 | 业务价值 |
+|--------|------|---------------|----------|----------|
+| P0 | 前端工程迁移与基础改造 | 3 | 高 | 高 |
+| P0 | API 契约文档补齐 | 1 | 中 | 高 |
+| P0 | 工作流基础骨架 | 2 | 中 | 高 |
+| P0 | SSE Client 与输出面板 | 3 | 高 | 高 |
+| P1 | Plugins 联调 | 2 | 中 | 高 |
+| P1 | Files/Corpus 联调 | 2 | 低 | 中 |
+| P1 | Settlements 联调 | 1 | 低 | 中 |
+| P1 | 全链路回归测试 | 2 | 中 | 高 |
+| P2 | 性能优化与体验打磨 | 2 | 低 | 中 |
+
+### 10.2 资源分配建议
+
+**总工作量：** 18 人日（约 3.6 周，按 1 人计算）
+
+**关键路径：** 前端迁移 → API 补齐 → 工作流骨架 → SSE Client → 全链路测试 → 性能优化（11 人日）
+
+**并行开发机会：** Plugins/Files/Settlements 可并行开发（节省 2 人日）
+
+**实际交付周期：** 16 人日（约 3.2 周）
+
+## 11. 技术选型对比表
+
+### 11.1 SSE 客户端策略对比
+
+| 方案 | EventSource | Fetch + ReadableStream |
+|------|-------------|------------------------|
+| **实现复杂度** | 简单 | 中等 |
+| **浏览器兼容性** | 优秀（IE 不支持） | 良好（需 polyfill） |
+| **自定义 Header** | 不支持 | 完全支持 |
+| **自动重连** | 内置 | 需手动实现 |
+| **错误处理** | 基础 | 完全可控 |
+| **性能** | 优秀 | 良好 |
+| **调试友好度** | 一般 | 优秀 |
+| **适用场景** | 同域/Cookie 认证 | 跨域/Token 认证 |
+
+**推荐方案：** 混合策略（Stream Adapter 模式）
+- 优先使用 EventSource（简单场景）
+- 降级到 Fetch Stream（需要 Header 场景）
+
+### 11.2 状态管理方案对比
+
+| 方案 | Context + useReducer | Zustand | Redux Toolkit |
+|------|---------------------|---------|---------------|
+| **学习成本** | 低 | 低 | 中 |
+| **包大小** | 0KB | 2.5KB | 12KB |
+| **TypeScript 支持** | 良好 | 优秀 | 优秀 |
+| **开发体验** | 一般 | 优秀 | 优秀 |
+| **性能** | 一般 | 优秀 | 优秀 |
+| **生态** | React 内置 | 中等 | 丰富 |
+
+**推荐方案：** Zustand（轻量、易用、性能好）
+
+## 12. 数据流设计图
+
+### 12.1 SSE 流式输出数据流
+
+```mermaid
+sequenceDiagram
+    participant FE as 前端
+    participant BE as 后端
+    participant SSE as SSE Hub
+    participant Plugin as 插件服务
+    
+    FE->>BE: POST /plugins/:id/invoke-async
+    BE->>Plugin: 调用插件
+    BE-->>FE: 202 {job_uuid, session_id}
+    
+    FE->>BE: GET /sse/stream?session_id=xxx
+    BE->>SSE: 注册客户端
+    SSE-->>FE: 建立 SSE 连接
+    
+    Plugin->>BE: 返回处理结果
+    BE->>SSE: 广播事件
+    SSE-->>FE: event: step.appended
+    FE->>FE: 更新 UI（增量渲染）
+    
+    Plugin->>BE: 质量检查完成
+    BE->>SSE: 广播事件
+    SSE-->>FE: event: quality.checked
+    
+    Plugin->>BE: 导出就绪
+    BE->>SSE: 广播事件
+    SSE-->>FE: event: export.ready
+    
+    Note over FE: 断线重连逻辑
+    FE->>BE: 重新连接 SSE
+    BE->>SSE: 重新注册客户端
+```
+
+### 12.2 前端状态管理数据流
+
+```mermaid
+graph LR
+    A[用户操作] --> B[Action Dispatch]
+    B --> C[Store Update]
+    C --> D[Component Re-render]
+    D --> E[UI Update]
+    
+    subgraph "SSE 数据流"
+        F[SSE Event] --> G[Event Handler]
+        G --> H[Store Update]
+        H --> I[UI Incremental Update]
+    end
+    
+    subgraph "错误处理流"
+        J[Error Event] --> K[Error Handler]
+        K --> L[Error State Update]
+        L --> M[Error UI Display]
+    end
+```
+
+## 13. 错误处理策略矩阵
+
+### 13.1 错误分类与处理策略
+
+| 错误类型 | 错误场景 | 处理策略 | 用户体验 | 恢复方案 |
+|----------|----------|----------|----------|----------|
+| **网络错误** | 请求超时 | 自动重试 3 次 | 显示重试中 | 手动重试按钮 |
+| **网络错误** | 连接失败 | 指数退避重连 | 显示离线状态 | 网络恢复自动重连 |
+| **认证错误** | Token 过期 | 自动刷新 Token | 无感知 | 刷新失败跳转登录 |
+| **认证错误** | 无权限 | 显示错误信息 | 403 错误页 | 联系管理员 |
+| **SSE 错误** | 连接断开 | 自动重连 | 显示断线提示 | 保持已有输出 |
+| **SSE 错误** | 事件解析失败 | 记录日志，继续监听 | 跳过错误事件 | 不影响后续事件 |
+| **业务错误** | 插件调用失败 | 显示错误详情 | 错误状态 + 重试 | 重新调用插件 |
+| **业务错误** | 文件上传失败 | 显示错误原因 | 上传失败提示 | 重新选择文件 |
+| **系统错误** | 服务器 500 | 显示通用错误 | 系统繁忙提示 | 稍后重试 |
+
+### 13.2 错误处理代码模式
+
+```typescript
+// 统一错误处理器
+interface ErrorHandler {
+  handleNetworkError(error: NetworkError): void;
+  handleAuthError(error: AuthError): void;
+  handleSSEError(error: SSEError): void;
+  handleBusinessError(error: BusinessError): void;
+}
+
+// 错误恢复策略
+interface RecoveryStrategy {
+  canRecover(error: Error): boolean;
+  recover(error: Error): Promise<void>;
+  getRetryDelay(attempt: number): number;
+}
+```
