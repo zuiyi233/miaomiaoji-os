@@ -1,0 +1,90 @@
+- If I find 10,000 ways something won't work, I haven't failed. I am not discouraged, because every wrong attempt discarded is another step forward. — Thomas Edison｜未知
+- If we all did the things we are capable of doing, we would literally astound ourselves. — Thomas Edison｜未知
+- To invent, you need a good imagination and a pile of junk. — Thomas Edison｜未知
+- Genius is one per cent inspiration, ninety-nine per cent perspiration. — Thomas Edison｜未知
+- If you're going through hell, keep going. — Winston Churchill｜未知
+- It is no use saying, 'We are doing our best.' You have got to succeed in doing what is necessary. — Winston Churchill｜未知
+- I am not bound to win, but I am bound to be true. I am not bound to succeed, but I am bound to live by the light that I have. I must stand with anybody that stands right, and stand with him while he is right, and part with him when he goes wrong. — Abraham Lincoln｜未知
+- To improve is to change; to be perfect is to change often. — Winston Churchill｜未知
+- In times of change, learners inherit the earth, while the learned find themselves beautifully equipped to deal with a world that no longer exists. — Eric Hoffer｜未知
+- If you're changing the world, you're working on important things. You're excited to get up in the morning. — Larry Page｜未知
+- The one thing that you have that nobody else has is you. Your voice, your mind, your story, your vision. So write and draw and build and play and dance and live as only you can. — Neil Gaiman｜未知
+- The biggest room in the world is room for improvement. — Helmut Schmidt｜未知
+- Whether you think you can or you think you can't, you are right. — Henry Ford｜未知
+- There's power in looking silly and not caring that you do. — Amy Poehler｜未知
+- In the middle of every difficulty lies opportunity. — Albert Einstein｜未知
+- I think people who are creative are the luckiest people on earth. I know that there are no shortcuts, but you must keep your faith in something Greater than you and keep doing what you love. Do what you love, and you will find the way to get it out to the world. — Judy Collins｜未知
+- Every great dream begins with a dreamer. Always remember, you have within you the strength, the patience, and the passion to reach for the stars to change the world. — Harriet Tubman｜未知
+- If you're trying to achieve, there will be roadblocks. I've had them; everybody has had them. But obstacles don't have to stop you. If you run into a wall, don't turn around and give up. Figure out how to climb it, go through it, or work around it. — Michael Jordan｜未知
+- It always seems impossible until it's done. — Nelson Mandela｜未知
+- Optimism is the faith that leads to achievement. Nothing can be done without hope and confidence. — Helen Keller｜未知
+- Good, better, best. Never let it rest. ‘Til your good is better and your better is best. — Jerome｜未知
+- Accept the challenges so that you can feel the exhilaration of victory. — George S. Patton｜未知
+- We should not give up and we should not allow the problem to defeat us. — A. P. J. Abdul Kalam｜未知
+- Difficulties increase the nearer we get to the goal. — Johann Wolfgang von Goethe｜未知
+- Only I can change my life. No one can do it for me. — Carol Burnett｜未知
+- If you want to succeed you should strike out on new paths, rather than travel the worn paths of accepted success. — John Locke｜未知
+- There is nothing impossible to him who will try. — Alexander the Great｜未知
+- I'll prepare and someday my chance will come. — Abraham Lincoln｜未知
+- The dream was always running ahead of me. To catch up, to live for a moment in unison with it, that was the miracle. — Anaïs Nin｜未知
+- A person who never made a mistake never tried anything new. — Albert Einstein｜未知
+- With the new day comes new strength and new thoughts. — Eleanor Roosevelt｜未知
+- If you aren't going all the way, why go at all? — Joe Namath｜未知
+- Let us sacrifice our today so that our children can have a better tomorrow. — A. P. J. Abdul Kalam｜未知
+- Keep your eyes on the stars and your feet on the ground. — Theodore Roosevelt｜未知
+- The more man meditates upon good thoughts, the better will be his world and the world at large. — Confucius｜未知
+- By failing to prepare, you are preparing to fail. — Benjamin Franklin｜未知
+- Learning is the beginning of wealth. Learning is the beginning of health. Learning is the beginning of spirituality. Searching and learning is where the miracle process all begins. — Jim Rohn｜未知
+- Do the difficult things while they are easy and do the great things while they are small. A journey of a thousand miles must begin with a single step. — Laozi｜未知
+- Our greatest weakness lies in giving up. The most certain way to succeed is always to try just one more time. — Thomas Edison｜未知
+- Without hard work, nothing grows but weeds. — Gordon Hinckley｜未知
+- Life is 10% what happens to you and 90% how you react to it. — Chuck Swindoll｜未知
+- Quality is not an act; it is a habit. — Aristotle｜未知
+- Go for it now. The future is promised to no one. — Wayne Dyer｜未知
+- Difficulties are meant to rouse, not discourage. The human spirit is to grow strong by conflict. — William Ellery Channing｜未知
+- Beginning today, treat everyone you meet as if they were going to be dead by midnight. Extend to them all the care, kindness and understanding you can muster, and do it with no thought of any reward. Your life will never be the same again. — Og Mandino｜未知
+- The will to win, the desire to succeed, the urge to reach your full potential... these are the keys that will unlock the door to personal excellence. — Confucius｜未知
+- Mountains cannot be surmounted except by winding paths. — Johann Wolfgang von Goethe｜未知
+- I'd rather attempt to do something great and fail than to attempt to do nothing and succeed. — Robert Schuller｜未知
+- If you can dream it, you can do it. — Walt Disney｜未知
+- I can, therefore I am. — Simone Weil｜未知
+- You can't cross the sea merely by standing and staring at the water. — Rabindranath Tagore｜未知
+- Failure will never overtake me if my determination to succeed is strong enough. — Og Mandino｜未知
+- The secret of getting ahead is getting started. — Mark Twain｜未知
+- Motivation is the art of getting people to do what you want them to do because they want to do it. — Dwight D. Eisenhower｜未知
+- There is no passion to be found playing small - in settling for a life that is less than the one you are capable of living. — Nelson Mandela｜未知
+- I know not age, nor weariness nor defeat. — Rose Kennedy｜未知
+- Do not wait; the time will never be 'just right.' Start where you stand, and work with whatever tools you may have at your command, and better tools will be found as you go along. — George Herbert｜未知
+- Believe in yourself! Have faith in your abilities! Without a humble but reasonable confidence in your own powers you cannot be successful or happy. — Norman Vincent Peale｜未知
+- Set your goals high, and don't stop till you get there. — Bo Jackson｜未知
+- Do the one thing you think you cannot do. Fail at it. Try again. Do better the second time. The only people who never tumble are those who never mount the high wire. This is your moment. Own it. — Oprah Winfrey｜未知
+- There is only one corner of the universe you can be certain of improving, and that's your own self. — Aldous Huxley｜未知
+- You are not here merely to make a living. You are here in order to enable the world to live more amply, with greater vision, with a finer spirit of hope and achievement. You are here to enrich the world, and you impoverish yourself if you forget the errand. — Woodrow Wilson｜未知
+- Knowing is not enough; we must apply! — Johann Wolfgang von Goethe｜未知
+- One who gains strength by overcoming obstacles possesses the only strength which can overcome adversity. — Albert Schweitzer｜未知
+- The best way to predict your future is to create it. — Peter Drucker｜未知
+- I will prepare and someday my chance will come. — Abraham Lincoln｜未知
+- Start where you are. Use what you have. Do what you can. — Arthur Ashe｜未知
+- Setting goals is the first step in turning the invisible into the visible. — Tony Robbins｜未知
+- Learn from yesterday, live for today, hope for tomorrow. — Albert Einstein｜未知
+- Always do your best. What you plant now, you will harvest later. — Og Mandino｜未知
+- To accomplish great things, we must not only act, but also dream; not only plan, but also believe. — Anatole France｜未知
+- Believe deep down in your heart that you're destined to do great things. — Joe Paterno｜未知
+- Be Impeccable with Your Word. Speak with integrity. Say only what you mean. Avoid using the word to speak against yourself or to gossip about others. Use the power of your word in the direction of truth and love. — Don Miguel Ruiz｜未知
+- Always bear in mind that your own resolution to succeed is more important than any one thing. — Abraham Lincoln｜未知
+- Once we accept our limits, we go beyond them. — Albert Einstein｜未知
+- When you reach the end of your rope, tie a knot in it and hang on. — Franklin D. Roosevelt｜未知
+- I know where I'm going and I know the truth, and I don't have to be what you want me to be. I'm free to be what I want. — Muhammad Ali｜未知
+- It does not matter how slowly you go as long as you do not stop. — Confucius｜未知
+- Your talent is God's gift to you. What you do with it is your gift back to God. — Leo Buscaglia｜未知
+- Change your life today. Don't gamble on the future, act now, without delay. — Simone de Beauvoir｜未知
+- Look up at the stars and not down at your feet. Try to make sense of what you see, and wonder about what makes the universe exist. Be curious. — Stephen Hawking｜未知
+- What you get by achieving your goals is not as important as what you become by achieving your goals. — Zig Ziglar｜未知
+- Consult not your fears but your hopes and your dreams. Think not about your frustrations, but about your unfulfilled potential. Concern yourself not with what you tried and failed in, but with what it is still possible for you to do. — Pope John XXIII｜未知
+- The key is to keep company only with people who uplift you, whose presence calls forth your best. — Epictetus｜未知
+- Choose a job you love, and you will never have to work a day in your life. — Confucius｜未知
+- Ability is what you're capable of doing. Motivation determines what you do. Attitude determines how well you do it. — Lou Holtz｜未知
+- As you think, so shall you become. — Bruce Lee｜未知
+- Do something wonderful, people may imitate it. — Albert Schweitzer｜未知
+- In the depth of winter, I finally learned that there was within me an invincible summer. — Albert Camus｜未知
+- Nobody will believe in you unless you believe in yourself. — Liberace｜未知

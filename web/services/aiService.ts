@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
+import inspirationRaw from '../assets/inspiration.md?raw';
 import { AIProvider, AISettings, EntityType, ModelInfo, Project } from "../types";
 
 // Base interface for the response
@@ -313,61 +314,33 @@ export async function* generateTextStream(
   }
 }
 
-export const fetchInternetInspiration = async (settings: AISettings = DEFAULT_AI_SETTINGS): Promise<{ quote: string, source: string, url?: string }> => {
-  if (settings.provider === 'gemini') {
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: '请从互联网中精选一句富有深意、优美且适合激发创作灵感的名言或短句。请直接输出句子内容、作者及出处。要求真实可信，具有文学美感。请以 JSON 格式返回，包含 quote 和 source 两个字段。',
-        config: {
-          tools: [{ googleSearch: {} }],
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              quote: { type: Type.STRING },
-              source: { type: Type.STRING }
-            },
-            required: ["quote", "source"]
-          }
-        }
-      });
-      const data = JSON.parse(response.text || "{}");
-      const url = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.[0]?.web?.uri;
-      return { 
-        quote: data.quote || "笔尖下的每一个字，都是灵魂在纸上的呼吸。", 
-        source: data.source || "佚名",
-        url 
+type InspirationEntry = { quote: string; source: string };
+
+const parseInspiration = (): InspirationEntry[] => {
+  return inspirationRaw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('- '))
+    .map((line) => line.replace(/^-\s*/, ''))
+    .map((line) => {
+      const [quotePart, sourcePart] = line.split('—').map((part) => part.trim());
+      return {
+        quote: quotePart || '',
+        source: sourcePart || '未知',
       };
-    } catch (e) {
-      console.warn("Gemini inspiration fetch failed", e);
-    }
-  }
+    })
+    .filter((entry) => entry.quote);
+};
 
-  const prompt = '请精选一句富有深意的中文文学名句或创作灵感短句。请直接以 JSON 格式返回：{"quote": "内容", "source": "作者/出处"}';
-  const systemInstruction = '你是一位博学的小说家助手。';
-  const schema = {
-    type: Type.OBJECT,
-    properties: {
-      quote: { type: Type.STRING },
-      source: { type: Type.STRING }
-    },
-    required: ["quote", "source"]
-  };
+const INSPIRATION_POOL = parseInspiration();
 
-  try {
-    const data = await generateJSON(prompt, systemInstruction, schema, settings);
-    return { 
-      quote: data?.quote || "笔尖下的每一个字，都是灵魂在纸上的呼吸。", 
-      source: data?.source || "佚名"
-    };
-  } catch (e) {
-    return { 
-      quote: "每一个不曾起舞的日子，中的对生命的辜负。", 
-      source: "尼采" 
-    };
+export const fetchInternetInspiration = async (): Promise<{ quote: string, source: string, url?: string }> => {
+  if (INSPIRATION_POOL.length === 0) {
+    return { quote: "笔尖下的每一个字，都是灵魂在纸上的呼吸。", source: "佚名" };
   }
+  const index = Math.floor(Math.random() * INSPIRATION_POOL.length);
+  const selected = INSPIRATION_POOL[index];
+  return { quote: selected.quote, source: selected.source };
 };
 
 export const refineNovelCore = async (project: Project): Promise<Partial<Project>> => {

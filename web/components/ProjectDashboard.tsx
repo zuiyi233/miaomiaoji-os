@@ -290,49 +290,88 @@ const PointsCard: React.FC = () => {
 };
 
 const InspirationCard: React.FC = () => {
+  const INSPIRATION_CACHE_KEY = 'nao_daily_inspiration';
+  const INSPIRATION_FETCH_KEY = 'nao_last_inspiration_fetch';
+  const INSPIRATION_HOUR_KEY = 'nao_last_inspiration_hour';
+  const INSPIRATION_DISABLE_KEY = 'nao_inspiration_disabled_until';
+  const INSPIRATION_FAIL_COUNT_KEY = 'nao_inspiration_fail_count';
+
   const [inspiration, setInspiration] = useState<{quote: string, source: string, url?: string} | null>(() => {
-    const saved = localStorage.getItem('nao_daily_inspiration');
+    const saved = localStorage.getItem(INSPIRATION_CACHE_KEY);
     return saved ? JSON.parse(saved) : null;
   });
   const [loading, setLoading] = useState(false);
+  const [disabledUntil, setDisabledUntil] = useState<number>(() => {
+    const saved = localStorage.getItem(INSPIRATION_DISABLE_KEY);
+    return saved ? parseInt(saved) : 0;
+  });
+  const initialFetchRef = useRef(false);
 
-  const fetchNewInspiration = useCallback(async () => {
+  const getBackoffMs = (failCount: number) => {
+    const base = 5 * 60 * 1000;
+    const max = 24 * 60 * 60 * 1000;
+    const backoff = base * Math.pow(2, Math.max(0, failCount - 1));
+    return Math.min(max, backoff);
+  };
+
+  const fetchNewInspiration = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && disabledUntil && disabledUntil > now) return;
     setLoading(true);
     try {
       const result = await fetchInternetInspiration(DEFAULT_AI_SETTINGS);
       setInspiration(result);
-      localStorage.setItem('nao_daily_inspiration', JSON.stringify(result));
-      localStorage.setItem('nao_last_inspiration_fetch', Date.now().toString());
+      localStorage.setItem(INSPIRATION_CACHE_KEY, JSON.stringify(result));
+      localStorage.setItem(INSPIRATION_FETCH_KEY, Date.now().toString());
+      localStorage.setItem(INSPIRATION_HOUR_KEY, Math.floor(Date.now() / (60 * 60 * 1000)).toString());
+      localStorage.removeItem(INSPIRATION_DISABLE_KEY);
+      localStorage.setItem(INSPIRATION_FAIL_COUNT_KEY, '0');
+      setDisabledUntil(0);
     } catch (e) {
-      console.error("Failed to fetch inspiration", e);
+      const currentFail = parseInt(localStorage.getItem(INSPIRATION_FAIL_COUNT_KEY) || '0') + 1;
+      const nextRetryAt = Date.now() + getBackoffMs(currentFail);
+      localStorage.setItem(INSPIRATION_FAIL_COUNT_KEY, currentFail.toString());
+      localStorage.setItem(INSPIRATION_DISABLE_KEY, nextRetryAt.toString());
+      setDisabledUntil(nextRetryAt);
+      console.warn("Failed to fetch inspiration", e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [disabledUntil]);
 
   useEffect(() => {
-    const lastFetch = localStorage.getItem('nao_last_inspiration_fetch');
+    if (initialFetchRef.current) return;
+    initialFetchRef.current = true;
+    const lastFetch = localStorage.getItem(INSPIRATION_FETCH_KEY);
+    const lastHour = localStorage.getItem(INSPIRATION_HOUR_KEY);
     const oneHour = 60 * 60 * 1000;
-    if (!inspiration || !lastFetch || (Date.now() - parseInt(lastFetch) > oneHour)) {
+    const now = Date.now();
+    if (disabledUntil && disabledUntil > now) return;
+    const currentHour = Math.floor(now / (60 * 60 * 1000));
+    const needsRotation = !lastHour || parseInt(lastHour) !== currentHour;
+    if (!inspiration || !lastFetch || (now - parseInt(lastFetch) > oneHour) || needsRotation) {
       fetchNewInspiration();
     }
-  }, []);
+  }, [fetchNewInspiration, inspiration, disabledUntil]);
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-paper-200 dark:border-zinc-800 p-6 rounded-[2.5rem] shadow-sm flex flex-col h-full relative group transition-all hover:shadow-lg">
-       <div className="flex items-center justify-between mb-4 shrink-0">
-          <h4 className="text-[10px] font-black uppercase tracking-widest text-ink-900 dark:text-zinc-100 flex items-center gap-2">
-            <Quote className="w-4 h-4 text-indigo-500" /> 每日灵感
-          </h4>
-          <button 
-            onClick={fetchNewInspiration} 
+        <div className="flex items-center justify-between mb-2 shrink-0">
+           <h4 className="text-[10px] font-black uppercase tracking-widest text-ink-900 dark:text-zinc-100 flex items-center gap-2">
+             <Quote className="w-4 h-4 text-indigo-500" /> 每日灵感
+           </h4>
+           <button 
+            onClick={() => fetchNewInspiration(true)} 
             disabled={loading}
             className={`p-1.5 text-ink-300 hover:text-brand-500 transition-all ${loading ? 'animate-spin' : ''}`}
             title="手动刷新"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
-       </div>
+        </div>
+        {disabledUntil > Date.now() && !loading && (
+          <div className="text-[9px] text-amber-500 font-bold uppercase tracking-widest mb-3">网络不可用，已暂停自动获取，可手动刷新</div>
+        )}
        <div className="flex-1 flex flex-col justify-center">
           {loading ? (
              <div className="flex flex-col items-center gap-3 opacity-40">
