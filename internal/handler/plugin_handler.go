@@ -1,344 +1,357 @@
 package handler
 
 import (
-	"strconv"
-	"time"
-
 	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/service"
 	"novel-agent-os-backend/pkg/errors"
-	"novel-agent-os-backend/pkg/logger"
 	"novel-agent-os-backend/pkg/response"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
-// PluginHandler 插件处理器
 type PluginHandler struct {
 	pluginService service.PluginService
+	jobService    service.JobService
 }
 
-// NewPluginHandler 创建插件处理器
-func NewPluginHandler(pluginService service.PluginService) *PluginHandler {
+func NewPluginHandler(pluginService service.PluginService, jobService service.JobService) *PluginHandler {
 	return &PluginHandler{
 		pluginService: pluginService,
+		jobService:    jobService,
 	}
 }
 
-// RegisterPluginRequest 注册插件请求
-type RegisterPluginRequest struct {
-	Name        string `json:"name" binding:"required,max=100"`
+type CreatePluginRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Version     string `json:"version"`
+	Author      string `json:"author"`
 	Description string `json:"description"`
-	Version     string `json:"version" binding:"required"`
-	EntryPoint  string `json:"entry_point" binding:"required"`
-	Manifest    string `json:"manifest"`
+	Endpoint    string `json:"endpoint"`
+	EntryPoint  string `json:"entry_point"`
 }
 
-// UpdatePluginStatusRequest 更新插件状态请求
-type UpdatePluginStatusRequest struct {
-	Status string `json:"status" binding:"required"` // enabled/disabled
+type UpdatePluginRequest struct {
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Author      string `json:"author"`
+	Description string `json:"description"`
+	Endpoint    string `json:"endpoint"`
+	EntryPoint  string `json:"entry_point"`
+	IsEnabled   *bool  `json:"is_enabled"`
 }
 
-// UpdatePluginHealthRequest 更新插件健康状态请求
-type UpdatePluginHealthRequest struct {
-	Healthy bool `json:"healthy"`
-	Latency int  `json:"latency_ms"`
+type CreateCapabilityRequest struct {
+	CapID       string `json:"cap_id" binding:"required"`
+	Name        string `json:"name" binding:"required"`
+	Type        string `json:"type" binding:"required"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
 }
 
-// AddCapabilityRequest 添加插件能力请求
-type AddCapabilityRequest struct {
-	Name         string `json:"name" binding:"required,max=100"`
-	Description  string `json:"description"`
-	InputSchema  string `json:"input_schema"`
-	OutputSchema string `json:"output_schema"`
-}
-
-// UpdateCapabilityRequest 更新插件能力请求
-type UpdateCapabilityRequest struct {
-	Description  string `json:"description"`
-	InputSchema  string `json:"input_schema"`
-	OutputSchema string `json:"output_schema"`
-}
-
-// InvokeCapabilityRequest 调用插件能力请求
-type InvokeCapabilityRequest struct {
-	Input   map[string]interface{} `json:"input"`
-	Timeout int                    `json:"timeout_ms"` // 毫秒
-}
-
-// Register 注册插件
-func (h *PluginHandler) Register(c *gin.Context) {
-	var req RegisterPluginRequest
+func (h *PluginHandler) CreatePlugin(c *gin.Context) {
+	var req CreatePluginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("注册插件请求参数错误", logger.Err(err))
-		response.Error(c, errors.ErrInvalidParams)
+		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
 		return
 	}
 
-	plugin, err := h.pluginService.Register(
-		req.Name,
-		req.Description,
-		req.Version,
-		req.EntryPoint,
-		req.Manifest,
-	)
-	if err != nil {
-		response.Error(c, err)
+	plugin := &model.Plugin{
+		Name:        req.Name,
+		Version:     req.Version,
+		Author:      req.Author,
+		Description: req.Description,
+		Endpoint:    req.Endpoint,
+		EntryPoint:  req.EntryPoint,
+		IsEnabled:   false,
+		Status:      "disabled",
+		Healthy:     false,
+	}
+
+	if err := h.pluginService.CreatePlugin(plugin); err != nil {
+		response.Fail(c, errors.CodeInternalError, "Failed to create plugin")
 		return
 	}
 
 	response.SuccessWithData(c, plugin)
 }
 
-// List 获取插件列表
-func (h *PluginHandler) List(c *gin.Context) {
+func (h *PluginHandler) GetPlugin(c *gin.Context) {
+	id, err := parseUintParam(c, "plugin_id")
+	if err != nil {
+		response.Fail(c, errors.CodeInvalidParams, "Invalid plugin ID")
+		return
+	}
+
+	plugin, err := h.pluginService.GetPlugin(id)
+	if err != nil {
+		response.Fail(c, errors.CodePluginNotFound, "Plugin not found")
+		return
+	}
+
+	response.SuccessWithData(c, plugin)
+}
+
+func (h *PluginHandler) UpdatePlugin(c *gin.Context) {
+	id, err := parseUintParam(c, "plugin_id")
+	if err != nil {
+		response.Fail(c, errors.CodeInvalidParams, "Invalid plugin ID")
+		return
+	}
+
+	var req UpdatePluginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
+		return
+	}
+
+	plugin, err := h.pluginService.GetPlugin(id)
+	if err != nil {
+		response.Fail(c, errors.CodePluginNotFound, "Plugin not found")
+		return
+	}
+
+	if req.Name != "" {
+		plugin.Name = req.Name
+	}
+	if req.Version != "" {
+		plugin.Version = req.Version
+	}
+	if req.Author != "" {
+		plugin.Author = req.Author
+	}
+	if req.Description != "" {
+		plugin.Description = req.Description
+	}
+	if req.Endpoint != "" {
+		plugin.Endpoint = req.Endpoint
+	}
+	if req.EntryPoint != "" {
+		plugin.EntryPoint = req.EntryPoint
+	}
+	if req.IsEnabled != nil {
+		plugin.IsEnabled = *req.IsEnabled
+	}
+
+	if err := h.pluginService.UpdatePlugin(plugin); err != nil {
+		response.Fail(c, errors.CodeInternalError, "Failed to update plugin")
+		return
+	}
+
+	response.SuccessWithData(c, plugin)
+}
+
+func (h *PluginHandler) DeletePlugin(c *gin.Context) {
+	id, err := parseUintParam(c, "plugin_id")
+	if err != nil {
+		response.Fail(c, errors.CodeInvalidParams, "Invalid plugin ID")
+		return
+	}
+
+	if err := h.pluginService.DeletePlugin(id); err != nil {
+		response.Fail(c, errors.CodeInternalError, "Failed to delete plugin")
+		return
+	}
+
+	response.Success(c)
+}
+
+func (h *PluginHandler) ListPlugins(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
-	status := c.Query("status")
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
 	if page < 1 {
 		page = 1
 	}
-	if size < 1 || size > 100 {
-		size = 20
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
 	}
 
-	var plugins []*model.Plugin
-	var total int64
-	var err error
-
-	if status != "" {
-		plugins, total, err = h.pluginService.ListByStatus(status, page, size)
-	} else {
-		plugins, total, err = h.pluginService.List(page, size)
-	}
-
+	plugins, total, err := h.pluginService.ListPlugins(page, pageSize)
 	if err != nil {
-		response.Error(c, err)
+		response.Fail(c, errors.CodeInternalError, "Failed to list plugins")
 		return
 	}
 
-	response.SuccessWithPage(c, plugins, total, page, size)
+	response.SuccessWithData(c, gin.H{
+		"plugins":   plugins,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
 }
 
-// GetByID 根据ID获取插件
-func (h *PluginHandler) GetByID(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
+func (h *PluginHandler) EnablePlugin(c *gin.Context) {
+	id, err := parseUintParam(c, "plugin_id")
 	if err != nil {
-		response.Error(c, errors.ErrInvalidParams)
+		response.Fail(c, errors.CodeInvalidParams, "Invalid plugin ID")
 		return
 	}
 
-	plugin, err := h.pluginService.GetByID(id)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-
-	response.SuccessWithData(c, plugin)
-}
-
-// UpdateStatus 更新插件状态
-func (h *PluginHandler) UpdateStatus(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
-	if err != nil {
-		response.Error(c, errors.ErrInvalidParams)
-		return
-	}
-
-	var req UpdatePluginStatusRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("更新插件状态请求参数错误", logger.Err(err))
-		response.Error(c, errors.ErrInvalidParams)
-		return
-	}
-
-	if err := h.pluginService.UpdateStatus(id, req.Status); err != nil {
-		response.Error(c, err)
+	if err := h.pluginService.EnablePlugin(id); err != nil {
+		response.Fail(c, errors.CodeInternalError, "Failed to enable plugin")
 		return
 	}
 
 	response.Success(c)
 }
 
-// UpdateHealth 更新插件健康状态
-func (h *PluginHandler) UpdateHealth(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
+func (h *PluginHandler) DisablePlugin(c *gin.Context) {
+	id, err := parseUintParam(c, "plugin_id")
 	if err != nil {
-		response.Error(c, errors.ErrInvalidParams)
+		response.Fail(c, errors.CodeInvalidParams, "Invalid plugin ID")
 		return
 	}
 
-	var req UpdatePluginHealthRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("更新插件健康状态请求参数错误", logger.Err(err))
-		response.Error(c, errors.ErrInvalidParams)
-		return
-	}
-
-	if err := h.pluginService.UpdateHealth(id, req.Healthy, req.Latency); err != nil {
-		response.Error(c, err)
+	if err := h.pluginService.DisablePlugin(id); err != nil {
+		response.Fail(c, errors.CodeInternalError, "Failed to disable plugin")
 		return
 	}
 
 	response.Success(c)
 }
 
-// Delete 删除插件
-func (h *PluginHandler) Delete(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
+func (h *PluginHandler) PingPlugin(c *gin.Context) {
+	id, err := parseUintParam(c, "plugin_id")
 	if err != nil {
-		response.Error(c, errors.ErrInvalidParams)
+		response.Fail(c, errors.CodeInvalidParams, "Invalid plugin ID")
 		return
 	}
 
-	if err := h.pluginService.Delete(id); err != nil {
-		response.Error(c, err)
+	if err := h.pluginService.PingPlugin(id); err != nil {
+		response.Fail(c, errors.CodeInternalError, "Failed to ping plugin")
 		return
 	}
 
 	response.Success(c)
 }
 
-// AddCapability 添加插件能力
 func (h *PluginHandler) AddCapability(c *gin.Context) {
 	pluginID, err := parseUintParam(c, "plugin_id")
 	if err != nil {
-		response.Error(c, errors.ErrInvalidParams)
+		response.Fail(c, errors.CodeInvalidParams, "Invalid plugin ID")
 		return
 	}
 
-	var req AddCapabilityRequest
+	var req CreateCapabilityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("添加插件能力请求参数错误", logger.Err(err))
-		response.Error(c, errors.ErrInvalidParams)
+		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
 		return
 	}
 
-	cap, err := h.pluginService.AddCapability(
-		pluginID,
-		req.Name,
-		req.Description,
-		req.InputSchema,
-		req.OutputSchema,
-	)
-	if err != nil {
-		response.Error(c, err)
+	capability := &model.PluginCapability{
+		PluginID:    pluginID,
+		CapID:       req.CapID,
+		Name:        req.Name,
+		Type:        req.Type,
+		Description: req.Description,
+		Icon:        req.Icon,
+	}
+
+	if err := h.pluginService.AddCapability(capability); err != nil {
+		response.Fail(c, errors.CodeInternalError, "Failed to add capability")
 		return
 	}
 
-	response.SuccessWithData(c, cap)
+	response.SuccessWithData(c, capability)
 }
 
-// ListCapabilities 获取插件能力列表
-func (h *PluginHandler) ListCapabilities(c *gin.Context) {
+func (h *PluginHandler) GetCapabilities(c *gin.Context) {
 	pluginID, err := parseUintParam(c, "plugin_id")
 	if err != nil {
-		response.Error(c, errors.ErrInvalidParams)
+		response.Fail(c, errors.CodeInvalidParams, "Invalid plugin ID")
 		return
 	}
 
-	caps, err := h.pluginService.ListCapabilities(pluginID)
+	capabilities, err := h.pluginService.GetCapabilities(pluginID)
 	if err != nil {
-		response.Error(c, err)
+		response.Fail(c, errors.CodeInternalError, "Failed to get capabilities")
 		return
 	}
 
-	response.SuccessWithData(c, caps)
+	response.SuccessWithData(c, capabilities)
 }
 
-// GetCapability 获取插件能力
-func (h *PluginHandler) GetCapability(c *gin.Context) {
-	capabilityID, err := parseUintParam(c, "capability_id")
+func (h *PluginHandler) RemoveCapability(c *gin.Context) {
+	id, err := parseUintParam(c, "id")
 	if err != nil {
-		response.Error(c, errors.ErrInvalidParams)
+		response.Fail(c, errors.CodeInvalidParams, "Invalid capability ID")
 		return
 	}
 
-	cap, err := h.pluginService.GetCapability(capabilityID)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-
-	response.SuccessWithData(c, cap)
-}
-
-// UpdateCapability 更新插件能力
-func (h *PluginHandler) UpdateCapability(c *gin.Context) {
-	capabilityID, err := parseUintParam(c, "capability_id")
-	if err != nil {
-		response.Error(c, errors.ErrInvalidParams)
-		return
-	}
-
-	var req UpdateCapabilityRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("更新插件能力请求参数错误", logger.Err(err))
-		response.Error(c, errors.ErrInvalidParams)
-		return
-	}
-
-	updates := make(map[string]interface{})
-	if req.Description != "" {
-		updates["description"] = req.Description
-	}
-	if req.InputSchema != "" {
-		updates["input_schema"] = req.InputSchema
-	}
-	if req.OutputSchema != "" {
-		updates["output_schema"] = req.OutputSchema
-	}
-
-	if err := h.pluginService.UpdateCapability(capabilityID, updates); err != nil {
-		response.Error(c, err)
+	if err := h.pluginService.RemoveCapability(id); err != nil {
+		response.Fail(c, errors.CodeInternalError, "Failed to remove capability")
 		return
 	}
 
 	response.Success(c)
 }
 
-// DeleteCapability 删除插件能力
-func (h *PluginHandler) DeleteCapability(c *gin.Context) {
-	capabilityID, err := parseUintParam(c, "capability_id")
-	if err != nil {
-		response.Error(c, errors.ErrInvalidParams)
-		return
-	}
-
-	if err := h.pluginService.DeleteCapability(capabilityID); err != nil {
-		response.Error(c, err)
-		return
-	}
-
-	response.Success(c)
+type InvokePluginRequest struct {
+	Method  string                 `json:"method" binding:"required"`
+	Payload map[string]interface{} `json:"payload"`
 }
 
-// InvokeCapability 调用插件能力
-func (h *PluginHandler) InvokeCapability(c *gin.Context) {
-	capabilityID, err := parseUintParam(c, "capability_id")
+type InvokePluginAsyncRequest struct {
+	SessionID uint                   `json:"session_id" binding:"required"`
+	Method    string                 `json:"method" binding:"required"`
+	Payload   map[string]interface{} `json:"payload"`
+}
+
+func (h *PluginHandler) InvokePlugin(c *gin.Context) {
+	id, err := parseUintParam(c, "plugin_id")
 	if err != nil {
-		response.Error(c, errors.ErrInvalidParams)
+		response.Fail(c, errors.CodeInvalidParams, "Invalid plugin ID")
 		return
 	}
 
-	var req InvokeCapabilityRequest
+	var req InvokePluginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("调用插件能力请求参数错误", logger.Err(err))
-		response.Error(c, errors.ErrInvalidParams)
+		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
 		return
 	}
 
-	timeout := time.Duration(req.Timeout) * time.Millisecond
-	if timeout <= 0 {
-		timeout = 30 * time.Second // 默认30秒超时
-	}
-
-	result, err := h.pluginService.InvokeCapability(capabilityID, req.Input, timeout)
+	authorizationHeader := c.GetHeader("Authorization")
+	result, err := h.pluginService.InvokePlugin(c.Request.Context(), id, req.Method, req.Payload, authorizationHeader)
 	if err != nil {
-		response.Error(c, err)
+		response.Fail(c, errors.CodeInternalError, "Failed to invoke plugin")
 		return
 	}
 
 	response.SuccessWithData(c, result)
+}
+
+func (h *PluginHandler) InvokePluginAsync(c *gin.Context) {
+	pluginID, err := parseUintParam(c, "plugin_id")
+	if err != nil {
+		response.Fail(c, errors.CodeInvalidParams, "Invalid plugin ID")
+		return
+	}
+
+	var req InvokePluginAsyncRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
+		return
+	}
+
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "Unauthorized")
+		return
+	}
+
+	authorizationHeader := c.GetHeader("Authorization")
+	job, err := h.jobService.CreatePluginInvokeJobFromSession(userID, req.SessionID, pluginID, req.Method, req.Payload, authorizationHeader)
+	if err != nil {
+		// 约定：service 内用字符串错误区分，保持简单
+		if err.Error() == "access denied" {
+			response.Fail(c, errors.CodeForbidden, "Access denied")
+			return
+		}
+		response.Fail(c, errors.CodeJobCreateFailed, "Failed to create job")
+		return
+	}
+
+	c.Header("Location", "/api/v1/jobs/"+job.JobUUID)
+	c.JSON(202, response.Response{Code: errors.CodeSuccess, Message: "success", Data: gin.H{"job_uuid": job.JobUUID, "status": job.Status}})
 }

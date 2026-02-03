@@ -114,7 +114,7 @@ func (h *VolumeHandler) List(c *gin.Context) {
 
 // GetByID 根据ID获取卷
 func (h *VolumeHandler) GetByID(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
+	id, err := parseUintParam(c, "volume_id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
 		return
@@ -131,7 +131,7 @@ func (h *VolumeHandler) GetByID(c *gin.Context) {
 
 // Update 更新卷
 func (h *VolumeHandler) Update(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
+	id, err := parseUintParam(c, "volume_id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
 		return
@@ -181,7 +181,7 @@ func (h *VolumeHandler) Update(c *gin.Context) {
 
 // Delete 删除卷
 func (h *VolumeHandler) Delete(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
+	id, err := parseUintParam(c, "volume_id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
 		return

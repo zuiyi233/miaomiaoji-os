@@ -1,0 +1,207 @@
+0. 当前信息与关键假设
+0.1 后端契约（已确认）
+docs/api.md 已包含：
+
+JWT：/api/v1/auth/login|register|refresh|logout
+Projects：列表/创建/更新/删除/导出
+Plugins：列表/启用禁用/ping/能力/call/invoke-async + Jobs（轮询）
+并明确：异步调用可通过 SSE 订阅 session_id 获取进度（但具体 SSE endpoint 在现有片段未出现，需要在文档更后段或后端路由里确认）。
+0.2 参考项目里可复用的成熟实现（对标竞品 MuMuAINovel）
+在 参考项目/MuMuAINovel-main/frontend 里已有完整的 SSE 工具实现：
+
+src/utils/sseClient.ts：
+SSEClient（EventSource GET）
+SSEPostClient（fetch POST + ReadableStream 手动解析 event: + data:）
+支持 progress/chunk/result/error/done 分类型消息与累计内容 accumulatedContent
+这份实现可作为你们 Phase4 的 SSE 客户端与输出面板交互规范参考（尤其是“增量 chunk append”避免全量重排）。
+0.3 模板前端现状（需要注意的差异）
+你提供的“模板前端参考”（参考项目/1.28-novel-agent-os (5)）是 Vite + React（无路由库、无数据缓存库），并且 Auth/Project 都是 localStorage mock 的 Context，不是对接你们 Go 后端 API 的版本。
+因此：M4 的“工作流 + SSE + 配套模块联调”在真正落地时，必须以你们将要采用的“模板前端主工程”当前栈为准（路由/布局/组件库/请求层）。本计划按你在需求里提的“采用模板前端作为主工程”来写，但会把接口与模块拆分讲清楚，便于直接落到工程结构里。
+
+1. M4 交付范围（In Scope）与不做项（Out Scope）
+1.1 M4 必交付（功能闭环）
+工作流模块（核心）
+Sessions 列表页：可筛选/分页/查看状态（running/success/failed/canceled）
+Session 详情页：
+Steps 树/列表（按顺序、可折叠、定位）
+运行态输出面板（流式）
+历史回看（已完成 session 可回放 steps 与输出）
+失败重试（按 session 或按 step 的“重跑”入口，具体以接口为准）
+SSE 流式输出（核心）
+连接/断线/重连策略
+心跳/超时提示（前端层）
+增量渲染（append chunk，不频繁 setState 全量替换）
+输出能力：复制、折叠、按步骤定位、错误提示与重试
+配套模块最小可用联调（MVP）
+Plugins：列表 + 启用/禁用 + ping/健康/延迟展示（以现有接口为准）
+Files：上传/列表/下载（预览可按类型占位）
+Corpus：列表/导入入口（占位到可用）
+Settlements：积分流水列表 + 当前积分展示（读接口即可）
+Export：项目导出入口（下载 JSON 或跳转导出页）
+全链路回归（DoD 跑通）
+从“创建项目”开始，进入写作（卷/章节）、编辑内容、建立/编辑资料卡、运行工作流（SSE 输出）、最终导出项目。
+1.2 M4 明确不做（保持边界）
+复杂协作（多人实时编辑）
+第三方支付
+深度主题系统（允许仅保留轻量暗黑/亮色切换）
+模型训练相关
+2. 信息架构落地（M4 需要新增/补齐的页面）
+在你给定的全局 IA 基础上，M4 的重点是把 “工作流” 与 “配套模块” 完整补齐到可用。
+
+2.1 路由/页面清单（建议）
+/workflows：会话列表（Sessions）
+/workflows/:sessionId：会话详情（Steps + Output）
+/plugins：插件中心
+/files：文件与上传
+/corpus：语料（列表 + 导入入口）
+/settlements：积分流水
+/projects/:id/export 或 /projects/:id 内的导出面板
+2.2 页面布局（推荐交互）
+左侧主导航固定（项目/写作/资料卡/模板/工作流/插件/文件与语料/结算/设置）
+工作流详情页采用“三栏”或“两栏”：
+左：Step 树
+中：输出（stream）
+右：本次运行参数/元信息/结果归档入口（可折叠）
+3. 技术方案（M4 专项）
+3.1 SSE 客户端策略（核心）
+首选：EventSource（GET SSE）
+
+优点：浏览器原生、自动重连、简单
+难点：自定义 header 不方便（带 JWT 常见问题）
+解决策略（按你们后端实现二选一）：
+SSE endpoint 支持 Cookie/withCredentials（更偏同域）
+SSE endpoint 支持 token query 参数（谨慎：避免日志与 referrer 泄露，最好短期 token）
+使用 fetch-stream（POST/GET）手动解析 SSE（参考 MuMuAINovel 的 SSEPostClient）
+建议：保留两种实现并统一成一个“Stream Adapter”
+
+EventSourceAdapter：处理 GET SSE
+FetchStreamAdapter：处理 POST/需要 header 的 SSE
+上层对外暴露统一事件：onProgress/onChunk/onResult/onError/onDone
+3.2 断线重连与超时体验（DoD 必须覆盖）
+“连接中 / 已连接 / 已断开（可重试）/ 重连中”四态
+重连退避：指数退避 + jitter，上限例如 30s（避免风暴）
+心跳：如果后端不发心跳，前端需“超时检测”（例如 N 秒无任何 event 视为 stalled，提示用户“连接卡住，尝试重连”）
+断线可恢复：保持已累计输出，不因断线清空 UI
+3.3 流式渲染性能（避免大文本卡顿）
+输出按“Step → 输出块（chunks）”分桶存储
+UI 渲染只追加新 chunk（不要每次把全文拼接后 setState）
+对输出区启用：
+只在可见区域渲染（长输出可分页/虚拟化，或“折叠已完成步骤”减少 DOM）
+使用 requestAnimationFrame/批处理节流：例如每 50–100ms flush 一次渲染队列
+提供“暂停自动滚动 / 跳到底部”开关，避免用户回看时被强制拉走
+3.4 与 Jobs/异步调用的联动（基于 api.md 已存在）
+plugins/:id/invoke-async 返回 job_uuid（202 Accepted）
+前端策略：
+立刻在 Session 详情页创建“运行态卡片”
+以 session_id 作为主锚：
+SSE（优先）订阅 session 输出
+Jobs（fallback）轮询 job 状态（断线或 SSE 不可用时）
+“失败重试”策略：
+失败时保留失败原因与最后输出位置
+“重试”应产生新的 job/session（避免覆盖历史审计）
+4. M4 任务拆解（按交付物组织）
+4.1 工作流（Sessions + Steps）
+交付物
+
+Sessions List：分页、状态筛选、进入详情
+Session Detail：
+Steps 树（包含状态：queued/running/success/error）
+选中 Step 时输出区定位
+“运行中”与“已完成”两种视图（运行中自动更新）
+接口依赖（需要你们确认/补齐到 api.md 或后端实现）
+
+Sessions：list/get/create/run/retry
+Steps：list/get（通常嵌在 session detail 里）
+SSE：subscribe endpoint（按 session_id）
+若现阶段 api.md 未包含 sessions/steps/sse 的完整路径：M4 开始前必须完成“契约补全”，否则 UI 会被迫做大量占位。
+
+4.2 SSE 输出面板（Streaming Output Panel）
+交付物
+
+输出区域组件：支持
+流式追加、复制、折叠
+按 Step 分组
+错误态（包含错误码/消息）+ 重试按钮
+断线提示 + 立即重连
+输出格式：
+默认纯文本（最稳定）
+若有 markdown：需要做渲染隔离与增量策略（避免每次重排整个 markdown AST）
+4.3 Plugins 页面（联调）
+交付物
+
+插件列表（分页）
+启用/禁用按钮（loading/禁用态）
+ping 按钮与展示 healthy/latency_ms（以接口字段为准）
+插件详情（可选）：展示 capabilities + invoke 入口（可跳到工作流创建页）
+4.4 Files / Corpus（联调）
+Files
+
+上传（限制大小来自 env/config）
+列表 + 下载
+预览：图片/文本可做基础预览，其它类型显示占位
+Corpus
+
+列表（若接口已准备）
+导入入口（占位到可用：上传文件 → 触发后端导入任务 → 绑定 session/job 展示进度）
+4.5 Settlements（联调）
+当前积分展示（来自 /users/points）
+积分流水列表（需要 settlements 接口；若未有，M4 允许仅展示占位与 points）
+4.6 Export（联调）
+在项目页提供“导出”入口
+GET /api/v1/projects/:id/export：下载 JSON（或展示 JSON 再下载）
+导出完成后提示：文件名、大小、时间
+5. 环境配置与工程规范（M4 必须落地）
+5.1 配置项（不硬编码）
+API_BASE_URL
+SSE_BASE_URL（如不同域/不同前缀）
+UPLOAD_MAX_SIZE_MB
+SSE_CONNECT_TIMEOUT_MS、SSE_IDLE_TIMEOUT_MS、SSE_MAX_RETRY_MS
+ENABLE_MARKDOWN_OUTPUT（可选开关）
+5.2 API Client（统一错误与 401/refresh）
+所有请求自动带 Authorization: Bearer <token>
+401：
+先走 refresh（GET /api/v1/auth/refresh）
+refresh 失败 → 清空 token → 跳转登录页 → 提示“登录已过期”
+错误规范化：将 code/message/data 统一到前端错误对象，页面按空/错态显示
+6. 质量门禁（DoD Checklist，M4 阶段验收口径）
+6.1 功能验收
+Sessions 列表可用，详情可用，Steps 可定位
+SSE 运行态流式输出可实时展示，断线可恢复
+Plugins/Files/Corpus/Settlements/Export 都有可用 UI 与最小联调链路
+全链路回归跑通：创建项目 → 写作 → 资料卡 → 工作流生成 → 导出
+6.2 稳定性验收（必须可演示）
+Token 过期：自动刷新或明确提示重新登录
+SSE 中断：有断线提示、可手动重连、不会清空已有输出
+保存失败/网络失败：有明确错误态与恢复路径（重试/返回）
+6.3 性能验收（可接受即可）
+长列表（章节/实体/文件）：滚动不卡顿（需要虚拟化或 DOM 控制策略）
+大文本输出：追加渲染不卡顿（chunk flush + 折叠完成 step）
+路由级代码分割（至少工作流/编辑器/插件中心做到懒加载）
+7. 风险与对策（M4 特有）
+SSE 鉴权与跨域
+风险：EventSource 不支持自定义 header，跨域 CORS/认证容易踩坑
+对策：优先确认后端 SSE 鉴权方式；必要时使用 fetch-stream（参考 MuMuAINovel 的 SSEPostClient）
+大文本/长输出导致 UI 卡顿
+风险：每次 setState 拼接全文导致频繁重排
+对策：chunk 队列 + 批量 flush；按 step 分组折叠；必要时输出区虚拟化/分页
+Sessions/Steps 契约不完整
+风险：前端只能占位，联调失败
+对策：M4 开始前先完成 api.md 中 sessions/steps/sse 路径与 payload 的契约补齐（只更新现有 docs/api.md）
+8. “第 4 周交付节奏”（建议按 5 个工作日）
+D1：工作流基础骨架
+Sessions 列表/详情页路由与布局
+Step 树组件骨架（mock 数据先通）
+D2：SSE Client 与输出面板
+完成 Stream Adapter（EventSource + fetch-stream）
+输出面板：chunk append、断线态、复制/折叠
+D3：联调 Plugins + Jobs fallback
+插件列表 + enable/disable + ping
+invoke-async → job 轮询 fallback → 绑定 session 输出
+D4：Files/Corpus/Settlements/Export 最小可用
+文件上传/列表/下载
+语料列表/导入入口（占位到可用）
+积分/流水、导出入口
+D5：全链路回归与体验修补
+空/错/加载态补齐
+性能与交互打磨（自动滚动、重连、重试）
+最终验收脚本（可手动走通一遍）

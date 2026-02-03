@@ -21,14 +21,14 @@ type Entity struct {
 	Content        string         `gorm:"type:text" json:"content"`
 	VoiceStyle     string         `gorm:"size:100" json:"voice_style"`
 	Importance     string         `gorm:"size:20;default:secondary" json:"importance"` // main/secondary/minor
-	CustomFields   datatypes.JSON `json:"custom_fields"`                                // EntityCustomField[]
+	CustomFields   datatypes.JSON `json:"custom_fields"`                               // EntityCustomField[]
 	ReferenceCount int            `gorm:"default:0" json:"reference_count"`
 	ProjectID      uint           `gorm:"index;not null" json:"project_id"`
 
 	// 关联
-	Tags []EntityTag         `gorm:"foreignKey:EntityID" json:"tags,omitempty"`
-	Links []EntityLink       `gorm:"foreignKey:SourceID" json:"links,omitempty"`
-	Refs []DocumentEntityRef `gorm:"foreignKey:EntityID" json:"refs,omitempty"`
+	Tags  []EntityTag         `gorm:"foreignKey:EntityID" json:"tags,omitempty"`
+	Links []EntityLink        `gorm:"foreignKey:SourceID" json:"links,omitempty"`
+	Refs  []DocumentEntityRef `gorm:"foreignKey:EntityID" json:"refs,omitempty"`
 }
 
 // TableName 指定表名
@@ -41,7 +41,7 @@ type EntityTag struct {
 	BaseModelWithoutSoftDelete
 	EntityID uint   `gorm:"index;not null" json:"entity_id"`
 	Tag      string `gorm:"size:50;index;not null" json:"tag"`
-	
+
 	// 关联
 	Entity Entity `gorm:"foreignKey:EntityID" json:"entity,omitempty"`
 }
@@ -58,7 +58,7 @@ type EntityLink struct {
 	TargetID     uint   `gorm:"index;not null" json:"target_id"`
 	Type         string `gorm:"size:20" json:"type"`
 	RelationName string `gorm:"size:50" json:"relation_name"`
-	
+
 	// 关联
 	Source Entity `gorm:"foreignKey:SourceID" json:"source,omitempty"`
 	Target Entity `gorm:"foreignKey:TargetID" json:"target,omitempty"`

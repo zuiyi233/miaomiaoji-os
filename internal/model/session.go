@@ -11,7 +11,7 @@ type Session struct {
 	Mode      string `gorm:"size:50" json:"mode"` // Normal/Fusion/Single/Batch
 	ProjectID uint   `gorm:"index;not null" json:"project_id"`
 	UserID    uint   `gorm:"index;not null" json:"user_id"`
-	
+
 	// 关联
 	Steps []SessionStep `gorm:"foreignKey:SessionID" json:"steps,omitempty"`
 }
@@ -30,7 +30,7 @@ type SessionStep struct {
 	OrderIndex int            `gorm:"index" json:"order_index"`
 	Metadata   datatypes.JSON `json:"metadata"` // 摘要、字数等
 	SessionID  uint           `gorm:"index;not null" json:"session_id"`
-	
+
 	// 关联
 	Session Session `gorm:"foreignKey:SessionID" json:"session,omitempty"`
 }

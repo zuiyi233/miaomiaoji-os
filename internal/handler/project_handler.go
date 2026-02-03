@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/gin-gonic/gin"
-	"novel-agent-os-backend/internal/middleware"
 	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/service"
 	"novel-agent-os-backend/pkg/errors"
@@ -72,7 +71,7 @@ type ListProjectsRequest struct {
 
 // Create 创建项目
 func (h *ProjectHandler) Create(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID := getUserIDFromContext(c)
 	if userID == 0 {
 		response.Fail(c, errors.CodeUnauthorized, "未登录")
 		return
@@ -106,7 +105,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 
 // GetByID 获取项目详情
 func (h *ProjectHandler) GetByID(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
+	id, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "无效的项目ID")
 		return
@@ -124,7 +123,7 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 
 // List 获取项目列表
 func (h *ProjectHandler) List(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID := getUserIDFromContext(c)
 	if userID == 0 {
 		response.Fail(c, errors.CodeUnauthorized, "未登录")
 		return
@@ -160,7 +159,7 @@ func (h *ProjectHandler) List(c *gin.Context) {
 
 // Update 更新项目
 func (h *ProjectHandler) Update(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
+	id, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "无效的项目ID")
 		return
@@ -215,7 +214,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 
 // Delete 删除项目
 func (h *ProjectHandler) Delete(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
+	id, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "无效的项目ID")
 		return
@@ -236,21 +235,21 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 
 // Export 导出项目
 func (h *ProjectHandler) Export(c *gin.Context) {
-	id, err := parseUintParam(c, "id")
+	id, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "无效的项目ID")
 		return
 	}
 
-	project, err := h.projectService.GetByIDWithDetails(id)
+	export, err := h.projectService.ExportProject(id)
 	if err != nil {
-		logger.Error("Get project failed", logger.Err(err), logger.Uint("project_id", id))
+		logger.Error("Export project failed", logger.Err(err), logger.Uint("project_id", id))
 		response.Fail(c, errors.CodeNotFound, "项目不存在")
 		return
 	}
 
-	// TODO: 导出项目为JSON格式
-	response.SuccessWithData(c, h.toProjectResponse(project))
+	// 生成JSON导出
+	c.JSON(200, export)
 }
 
 // toProjectResponse 转换为项目响应
@@ -282,5 +281,3 @@ func (h *ProjectHandler) toProjectResponse(project *model.Project) *ProjectRespo
 		UpdatedAt:     project.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
 }
-
-

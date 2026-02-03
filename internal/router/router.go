@@ -2,10 +2,13 @@
 package router
 
 import (
+	"novel-agent-os-backend/internal/config"
 	"novel-agent-os-backend/internal/handler"
 	"novel-agent-os-backend/internal/middleware"
 	"novel-agent-os-backend/internal/repository"
 	"novel-agent-os-backend/internal/service"
+	"novel-agent-os-backend/internal/storage"
+	"novel-agent-os-backend/pkg/logger"
 	"novel-agent-os-backend/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -27,34 +30,75 @@ func Setup() *gin.Engine {
 	r.GET("/ready", ReadinessCheck)
 
 	// 初始化依赖
+	db := repository.GetDB()
+
 	userRepo := repository.NewUserRepository()
 	userService := service.NewUserService(userRepo)
 	authHandler := handler.NewAuthHandler(userService)
 	userHandler := handler.NewUserHandler(userService)
 
 	projectRepo := repository.NewProjectRepository()
-	projectService := service.NewProjectService(projectRepo)
+	volumeRepo := repository.NewVolumeRepository()
+	documentRepo := repository.NewDocumentRepository()
+	entityRepo := repository.NewEntityRepository()
+	templateRepo := repository.NewTemplateRepository()
+	projectService := service.NewProjectService(projectRepo, volumeRepo, documentRepo, entityRepo, templateRepo)
 	projectHandler := handler.NewProjectHandler(projectService)
 
-	volumeRepo := repository.NewVolumeRepository()
 	volumeService := service.NewVolumeService(volumeRepo, projectRepo)
 	volumeHandler := handler.NewVolumeHandler(volumeService)
 
-	documentRepo := repository.NewDocumentRepository()
 	documentService := service.NewDocumentService(documentRepo, projectRepo, volumeRepo)
 	documentHandler := handler.NewDocumentHandler(documentService)
 
-	entityRepo := repository.NewEntityRepository()
 	entityService := service.NewEntityService(entityRepo, projectRepo)
 	entityHandler := handler.NewEntityHandler(entityService)
 
-	templateRepo := repository.NewTemplateRepository()
 	templateService := service.NewTemplateService(templateRepo, projectRepo)
 	templateHandler := handler.NewTemplateHandler(templateService)
 
-	pluginRepo := repository.NewPluginRepository()
+	pluginRepo := repository.NewPluginRepository(db)
 	pluginService := service.NewPluginService(pluginRepo)
-	pluginHandler := handler.NewPluginHandler(pluginService)
+
+	// Session 依赖
+	sessionRepo := repository.NewSessionRepository(db)
+	sessionService := service.NewSessionService(sessionRepo)
+	sessionHandler := handler.NewSessionHandler(sessionService)
+
+	// Job 依赖
+	jobRepo := repository.NewJobRepository(db)
+	jobService := service.NewJobService(jobRepo, sessionRepo, pluginService, sessionService)
+	jobHandler := handler.NewJobHandler(jobService)
+
+	pluginHandler := handler.NewPluginHandler(pluginService, jobService)
+
+	// Settlement 依赖
+	settlementRepo := repository.NewSettlementRepository(db)
+	settlementService := service.NewSettlementService(settlementRepo)
+	settlementHandler := handler.NewSettlementHandler(settlementService)
+
+	// File 依赖
+	fileRepo := repository.NewFileRepository(db)
+	localStorage, err := storage.NewLocalStorage("./uploads")
+	if err != nil {
+		logger.Error("初始化本地存储失败", logger.Err(err))
+	}
+	fileService := service.NewFileService(fileRepo, localStorage)
+	fileHandler := handler.NewFileHandler(fileService)
+
+	// Corpus 依赖
+	corpusRepo := repository.NewCorpusRepository(db)
+	corpusService := service.NewCorpusService(corpusRepo)
+	corpusHandler := handler.NewCorpusHandler(corpusService)
+
+	// Formatting & Quality 依赖
+	formattingService := service.NewFormattingService(config.Config{})
+	qualityGateService := service.NewQualityGateService(config.Config{})
+	formattingHandler := handler.NewFormattingHandler(formattingService)
+	qualityHandler := handler.NewQualityHandler(qualityGateService)
+
+	// SSE 依赖
+	sseHandler := handler.NewSSEHandler()
 
 	// API v1
 	v1 := r.Group("/api/v1")
@@ -89,10 +133,10 @@ func Setup() *gin.Engine {
 		{
 			projects.GET("/", middleware.JWTAuth(), projectHandler.List)
 			projects.POST("/", middleware.JWTAuth(), projectHandler.Create)
-			projects.GET("/:id", middleware.JWTAuth(), projectHandler.GetByID)
-			projects.PUT("/:id", middleware.JWTAuth(), projectHandler.Update)
-			projects.DELETE("/:id", middleware.JWTAuth(), projectHandler.Delete)
-			projects.GET("/:id/export", middleware.JWTAuth(), projectHandler.Export)
+			projects.GET("/:project_id", middleware.JWTAuth(), projectHandler.GetByID)
+			projects.PUT("/:project_id", middleware.JWTAuth(), projectHandler.Update)
+			projects.DELETE("/:project_id", middleware.JWTAuth(), projectHandler.Delete)
+			projects.GET("/:project_id/export", middleware.JWTAuth(), projectHandler.Export)
 
 			// 项目下的卷路由
 			projects.GET("/:project_id/volumes", middleware.JWTAuth(), volumeHandler.List)
@@ -115,9 +159,9 @@ func Setup() *gin.Engine {
 		// 卷路由
 		volumes := v1.Group("/volumes")
 		{
-			volumes.GET("/:id", middleware.JWTAuth(), volumeHandler.GetByID)
-			volumes.PUT("/:id", middleware.JWTAuth(), volumeHandler.Update)
-			volumes.DELETE("/:id", middleware.JWTAuth(), volumeHandler.Delete)
+			volumes.GET("/:volume_id", middleware.JWTAuth(), volumeHandler.GetByID)
+			volumes.PUT("/:volume_id", middleware.JWTAuth(), volumeHandler.Update)
+			volumes.DELETE("/:volume_id", middleware.JWTAuth(), volumeHandler.Delete)
 
 			// 卷下的文档路由
 			volumes.GET("/:volume_id/documents", middleware.JWTAuth(), documentHandler.ListByVolume)
@@ -159,20 +203,102 @@ func Setup() *gin.Engine {
 		// 插件路由
 		plugins := v1.Group("/plugins")
 		{
-			plugins.POST("/register", middleware.JWTAuth(), pluginHandler.Register)
-			plugins.GET("/", middleware.JWTAuth(), pluginHandler.List)
-			plugins.GET("/:id", middleware.JWTAuth(), pluginHandler.GetByID)
-			plugins.PUT("/:id/status", middleware.JWTAuth(), pluginHandler.UpdateStatus)
-			plugins.PUT("/:id/health", middleware.JWTAuth(), pluginHandler.UpdateHealth)
-			plugins.DELETE("/:id", middleware.JWTAuth(), pluginHandler.Delete)
+			plugins.POST("", middleware.JWTAuth(), pluginHandler.CreatePlugin)
+			plugins.GET("", middleware.JWTAuth(), pluginHandler.ListPlugins)
+			plugins.GET("/:plugin_id", middleware.JWTAuth(), pluginHandler.GetPlugin)
+			plugins.PUT("/:plugin_id", middleware.JWTAuth(), pluginHandler.UpdatePlugin)
+			plugins.DELETE("/:plugin_id", middleware.JWTAuth(), pluginHandler.DeletePlugin)
+			plugins.PUT("/:plugin_id/enable", middleware.JWTAuth(), pluginHandler.EnablePlugin)
+			plugins.PUT("/:plugin_id/disable", middleware.JWTAuth(), pluginHandler.DisablePlugin)
+			plugins.POST("/:plugin_id/ping", middleware.JWTAuth(), pluginHandler.PingPlugin)
 
-			// 插件能力路由
-			plugins.GET("/:plugin_id/capabilities", middleware.JWTAuth(), pluginHandler.ListCapabilities)
+			plugins.GET("/:plugin_id/capabilities", middleware.JWTAuth(), pluginHandler.GetCapabilities)
 			plugins.POST("/:plugin_id/capabilities", middleware.JWTAuth(), pluginHandler.AddCapability)
-			plugins.GET("/capabilities/:capability_id", middleware.JWTAuth(), pluginHandler.GetCapability)
-			plugins.PUT("/capabilities/:capability_id", middleware.JWTAuth(), pluginHandler.UpdateCapability)
-			plugins.DELETE("/capabilities/:capability_id", middleware.JWTAuth(), pluginHandler.DeleteCapability)
-			plugins.POST("/capabilities/:capability_id/invoke", middleware.JWTAuth(), pluginHandler.InvokeCapability)
+			plugins.DELETE("/capabilities/:id", middleware.JWTAuth(), pluginHandler.RemoveCapability)
+
+			plugins.POST("/:plugin_id/invoke", middleware.JWTAuth(), pluginHandler.InvokePlugin)
+			plugins.POST("/:plugin_id/invoke-async", middleware.JWTAuth(), pluginHandler.InvokePluginAsync)
+		}
+
+		// 任务路由
+		jobs := v1.Group("/jobs")
+		{
+			jobs.GET("/:job_uuid", middleware.JWTAuth(), jobHandler.GetJob)
+			jobs.POST("/:job_uuid/cancel", middleware.JWTAuth(), jobHandler.CancelJob)
+		}
+
+		// 会话路由
+		sessions := v1.Group("/sessions")
+		{
+			sessions.POST("", middleware.JWTAuth(), sessionHandler.CreateSession)
+			sessions.GET("", middleware.JWTAuth(), sessionHandler.ListSessions)
+			sessions.GET("/:session_id", middleware.JWTAuth(), sessionHandler.GetSession)
+			sessions.PUT("/:session_id", middleware.JWTAuth(), sessionHandler.UpdateSession)
+			sessions.DELETE("/:session_id", middleware.JWTAuth(), sessionHandler.DeleteSession)
+
+			// SessionStep 路由
+			sessions.POST("/:session_id/steps", middleware.JWTAuth(), sessionHandler.CreateStep)
+			sessions.GET("/:session_id/steps", middleware.JWTAuth(), sessionHandler.ListSteps)
+			sessions.GET("/steps/:id", middleware.JWTAuth(), sessionHandler.GetStep)
+			sessions.PUT("/steps/:id", middleware.JWTAuth(), sessionHandler.UpdateStep)
+			sessions.DELETE("/steps/:id", middleware.JWTAuth(), sessionHandler.DeleteStep)
+		}
+
+		// SSE 路由
+		sse := v1.Group("/sse")
+		{
+			sse.GET("/stream", middleware.JWTAuth(), sseHandler.Stream)
+			sse.POST("/test", middleware.JWTAuth(), sseHandler.BroadcastTestEvent)
+		}
+
+		// 结算路由
+		settlements := v1.Group("/settlements")
+		{
+			settlements.POST("", middleware.JWTAuth(), settlementHandler.CreateEntry)
+			settlements.GET("", middleware.JWTAuth(), settlementHandler.ListEntries)
+			settlements.GET("/filter", middleware.JWTAuth(), settlementHandler.FilterEntries)
+			settlements.GET("/total-points", middleware.JWTAuth(), settlementHandler.GetTotalPoints)
+			settlements.GET("/:id", middleware.JWTAuth(), settlementHandler.GetEntry)
+			settlements.PUT("/:id", middleware.JWTAuth(), settlementHandler.UpdateEntry)
+			settlements.DELETE("/:id", middleware.JWTAuth(), settlementHandler.DeleteEntry)
+		}
+
+		// 语料库路由
+		corpus := v1.Group("/corpus")
+		{
+			corpus.POST("", middleware.JWTAuth(), corpusHandler.CreateStory)
+			corpus.GET("", middleware.JWTAuth(), corpusHandler.ListStories)
+			corpus.GET("/search", middleware.JWTAuth(), corpusHandler.SearchStories)
+			corpus.GET("/genre", middleware.JWTAuth(), corpusHandler.ListStoriesByGenre)
+			corpus.GET("/:id", middleware.JWTAuth(), corpusHandler.GetStory)
+			corpus.PUT("/:id", middleware.JWTAuth(), corpusHandler.UpdateStory)
+			corpus.DELETE("/:id", middleware.JWTAuth(), corpusHandler.DeleteStory)
+		}
+
+		// 文件路由
+		files := v1.Group("/files")
+		{
+			files.POST("", middleware.JWTAuth(), fileHandler.CreateFile)
+			files.GET("", middleware.JWTAuth(), fileHandler.ListFiles)
+			files.GET("/project/:project_id", middleware.JWTAuth(), fileHandler.ListFilesByProject)
+			files.GET("/:id", middleware.JWTAuth(), fileHandler.GetFile)
+			files.GET("/:id/download", middleware.JWTAuth(), fileHandler.DownloadFile)
+			files.PUT("/:id", middleware.JWTAuth(), fileHandler.UpdateFile)
+			files.DELETE("/:id", middleware.JWTAuth(), fileHandler.DeleteFile)
+		}
+
+		// 排版路由
+		formatting := v1.Group("/formatting")
+		{
+			formatting.POST("/format", middleware.JWTAuth(), formattingHandler.FormatText)
+			formatting.GET("/styles", middleware.JWTAuth(), formattingHandler.GetAvailableStyles)
+		}
+
+		// 质量门禁路由
+		quality := v1.Group("/quality")
+		{
+			quality.POST("/check", middleware.JWTAuth(), qualityHandler.CheckQuality)
+			quality.GET("/thresholds", middleware.JWTAuth(), qualityHandler.GetThresholds)
 		}
 	}
 

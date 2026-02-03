@@ -371,6 +371,177 @@
 
 ---
 
+## 插件接口
+
+### 创建插件
+- **URL**: `POST /api/v1/plugins`
+- **描述**: 创建插件记录（默认禁用）
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "name": "string (required)",
+  "version": "string",
+  "author": "string",
+  "description": "string",
+  "endpoint": "string (插件服务URL，如 http://127.0.0.1:9000)",
+  "entry_point": "string"
+}
+```
+- **响应（data）**: Plugin
+
+### 获取插件列表
+- **URL**: `GET /api/v1/plugins?page=1&page_size=20`
+- **描述**: 分页获取插件列表
+- **认证**: 是
+- **响应（data）**:
+```json
+{
+  "plugins": [],
+  "total": 0,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+### 获取插件详情
+- **URL**: `GET /api/v1/plugins/:id`
+- **描述**: 获取单个插件（含 capabilities）
+- **认证**: 是
+- **响应（data）**: Plugin
+
+### 更新插件
+- **URL**: `PUT /api/v1/plugins/:id`
+- **描述**: 更新插件信息
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "name": "string",
+  "version": "string",
+  "author": "string",
+  "description": "string",
+  "endpoint": "string",
+  "entry_point": "string",
+  "is_enabled": true
+}
+```
+- **响应（data）**: Plugin
+
+### 删除插件
+- **URL**: `DELETE /api/v1/plugins/:id`
+- **描述**: 删除插件
+- **认证**: 是
+- **响应**: 成功响应
+
+### 启用插件
+- **URL**: `PUT /api/v1/plugins/:id/enable`
+- **描述**: 启用插件
+- **认证**: 是
+- **响应**: 成功响应
+
+### 禁用插件
+- **URL**: `PUT /api/v1/plugins/:id/disable`
+- **描述**: 禁用插件
+- **认证**: 是
+- **响应**: 成功响应
+
+### Ping 插件
+- **URL**: `POST /api/v1/plugins/:id/ping`
+- **描述**: 更新插件最后一次 ping 时间（不做真实网络探测）
+- **认证**: 是
+- **响应**: 成功响应
+
+### 获取插件能力列表
+- **URL**: `GET /api/v1/plugins/:plugin_id/capabilities`
+- **描述**: 获取插件能力列表
+- **认证**: 是
+- **响应（data）**: PluginCapability[]
+
+### 添加插件能力
+- **URL**: `POST /api/v1/plugins/:plugin_id/capabilities`
+- **描述**: 添加插件能力
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "cap_id": "string (required)",
+  "name": "string (required)",
+  "type": "string (required)",
+  "description": "string",
+  "icon": "string"
+}
+```
+- **响应（data）**: PluginCapability
+
+### 删除插件能力
+- **URL**: `DELETE /api/v1/plugins/capabilities/:id`
+- **描述**: 删除插件能力
+- **认证**: 是
+- **响应**: 成功响应
+
+### 调用插件
+- **URL**: `POST /api/v1/plugins/:id/invoke`
+- **描述**: 调用插件能力（服务端转发请求到插件 endpoint）
+- **认证**: 是（会将 `Authorization` header 转发给插件）
+- **请求体**:
+```json
+{
+  "method": "string (required)",
+  "payload": {}
+}
+```
+- **转发规则**:
+  - 若 plugin.endpoint 为 `http(s)://host[:port]`（无 path 或 path 为 `/`），则默认请求 `POST {endpoint}/invoke`
+  - 若 plugin.endpoint 自带 path，则直接请求该 URL
+  - 超时：30s
+  - 会更新插件健康状态与延迟（healthy/latency_ms）
+- **响应（data）**: 插件返回的 JSON 对象；若非 JSON，则返回 `{ "raw": "..." }`
+
+### 异步调用插件
+- **URL**: `POST /api/v1/plugins/:id/invoke-async`
+- **描述**: 创建异步任务调用插件（长任务建议使用），返回 job_uuid，结果可轮询 jobs 接口或通过 SSE 订阅 session_id 获取进度
+- **认证**: 是（会将 `Authorization` header 转发给插件；仅在本进程内存保存，不落库，服务重启可能导致未执行任务失败）
+- **请求体**:
+```json
+{
+  "session_id": 1,
+  "method": "string (required)",
+  "payload": {}
+}
+```
+- **响应**: HTTP 202
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "job_uuid": "uuid-string",
+    "status": "queued"
+  }
+}
+```
+- **响应头**:
+  - `Location: /api/v1/jobs/{job_uuid}`
+
+---
+
+## 任务接口
+
+### 获取任务详情
+- **URL**: `GET /api/v1/jobs/:job_uuid`
+- **描述**: 获取任务状态与结果
+- **认证**: 是
+- **响应（data）**: Job
+
+### 取消任务
+- **URL**: `POST /api/v1/jobs/:job_uuid/cancel`
+- **描述**: 取消任务（若任务正在本进程内执行，会尽力取消；否则仅标记 canceled）
+- **认证**: 是
+- **响应（data）**: Job
+
+---
+
 ## 数据模型
 
 ### User 用户

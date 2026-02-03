@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	stderrors "errors"
 
 	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/repository"
@@ -233,7 +234,11 @@ func (s *entityService) CreateLink(id, targetID uint, linkType, relationName str
 		return errors.ErrEntityNotFound
 	}
 
-	// TODO: 检测循环引用
+	// 检测循环引用
+	if s.detectCycle(id, targetID) {
+		logger.Error("检测到循环引用", logger.Uint("source_id", id), logger.Uint("target_id", targetID))
+		return stderrors.New("circular reference detected")
+	}
 
 	if err := s.entityRepo.CreateLink(id, targetID, linkType, relationName); err != nil {
 		logger.Error("创建实体关联失败", logger.Err(err))
@@ -241,6 +246,45 @@ func (s *entityService) CreateLink(id, targetID uint, linkType, relationName str
 	}
 
 	return nil
+}
+
+// detectCycle 使用DFS检测循环引用
+func (s *entityService) detectCycle(sourceID, targetID uint) bool {
+	// 获取所有链接
+	links, err := s.entityRepo.GetLinks(targetID)
+	if err != nil {
+		return false
+	}
+
+	visited := make(map[uint]bool)
+	return s.hasPathTo(links, targetID, sourceID, visited)
+}
+
+// hasPathTo DFS搜索是否存在从current到target的路径
+func (s *entityService) hasPathTo(links []*model.EntityLink, current, target uint, visited map[uint]bool) bool {
+	if current == target {
+		return true
+	}
+
+	if visited[current] {
+		return false
+	}
+	visited[current] = true
+
+	// 获取当前节点的所有出边
+	currentLinks, _ := s.entityRepo.GetLinks(current)
+	for _, link := range currentLinks {
+		if link.TargetID == target {
+			return true
+		}
+		if !visited[link.TargetID] {
+			if s.hasPathTo(nil, link.TargetID, target, visited) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // DeleteLink 删除实体关联

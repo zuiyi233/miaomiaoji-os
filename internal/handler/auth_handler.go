@@ -37,8 +37,8 @@ type LoginRequest struct {
 
 // AuthResponse 认证响应
 type AuthResponse struct {
-	Token     string `json:"token"`
-	ExpiresIn int    `json:"expires_in"`
+	Token     string   `json:"token"`
+	ExpiresIn int      `json:"expires_in"`
 	User      UserInfo `json:"user"`
 }
 
@@ -76,7 +76,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	// 生成JWT Token
-	token, err := middleware.GenerateToken(user.ID, user.Username, user.Role)
+	token, err := middleware.GenerateToken(user.ID, user.Role)
 	if err != nil {
 		logger.Error("Generate token failed", logger.Err(err))
 		response.Fail(c, errors.CodeInternalError, "生成Token失败")
@@ -113,7 +113,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// 生成JWT Token
-	token, err := middleware.GenerateToken(user.ID, user.Username, user.Role)
+	token, err := middleware.GenerateToken(user.ID, user.Role)
 	if err != nil {
 		logger.Error("Generate token failed", logger.Err(err))
 		response.Fail(c, errors.CodeInternalError, "生成Token失败")
@@ -142,17 +142,23 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 // Refresh 刷新Token
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	username := middleware.GetUsername(c)
-	role := middleware.GetRole(c)
+	userID, exists := c.Get("userID")
+	if !exists {
+		response.Fail(c, errors.CodeUnauthorized, "未登录")
+		return
+	}
 
-	if userID == 0 {
+	role, _ := c.Get("userRole")
+	roleStr, _ := role.(string)
+	uid, _ := userID.(uint)
+
+	if uid == 0 {
 		response.Fail(c, errors.CodeUnauthorized, "未登录")
 		return
 	}
 
 	// 生成新Token
-	token, err := middleware.GenerateToken(userID, username, role)
+	token, err := middleware.GenerateToken(uid, roleStr)
 	if err != nil {
 		logger.Error("Generate token failed", logger.Err(err))
 		response.Fail(c, errors.CodeInternalError, "生成Token失败")

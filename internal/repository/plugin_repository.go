@@ -2,155 +2,120 @@ package repository
 
 import (
 	"novel-agent-os-backend/internal/model"
-	"novel-agent-os-backend/pkg/database"
+	"time"
+
+	"gorm.io/gorm"
 )
 
-// PluginRepository 插件数据访问接口
 type PluginRepository interface {
 	Create(plugin *model.Plugin) error
-	FindByID(id uint) (*model.Plugin, error)
-	FindByName(name string) (*model.Plugin, error)
-	List(page, size int) ([]*model.Plugin, int64, error)
-	ListByStatus(status string, page, size int) ([]*model.Plugin, int64, error)
+	GetByID(id uint) (*model.Plugin, error)
+	GetByName(name string) (*model.Plugin, error)
 	Update(plugin *model.Plugin) error
 	Delete(id uint) error
+	List(page, pageSize int) ([]*model.Plugin, int64, error)
+	ListEnabled() ([]*model.Plugin, error)
+	UpdateStatus(id uint, status string) error
+	UpdateHealth(id uint, healthy bool, latencyMs int) error
+	UpdateLastPing(id uint) error
 
-	// 插件能力
-	CreateCapability(cap *model.PluginCapability) error
-	FindCapabilityByID(id uint) (*model.PluginCapability, error)
-	FindCapabilitiesByPluginID(pluginID uint) ([]*model.PluginCapability, error)
-	FindCapabilityByName(pluginID uint, name string) (*model.PluginCapability, error)
-	UpdateCapability(cap *model.PluginCapability) error
+	CreateCapability(capability *model.PluginCapability) error
+	GetCapabilitiesByPluginID(pluginID uint) ([]*model.PluginCapability, error)
 	DeleteCapability(id uint) error
 }
 
-// pluginRepository 插件数据访问实现
-type pluginRepository struct{}
-
-// NewPluginRepository 创建插件仓库实例
-func NewPluginRepository() PluginRepository {
-	return &pluginRepository{}
+type pluginRepository struct {
+	db *gorm.DB
 }
 
-// Create 创建插件
+func NewPluginRepository(db *gorm.DB) PluginRepository {
+	return &pluginRepository{db: db}
+}
+
 func (r *pluginRepository) Create(plugin *model.Plugin) error {
-	return database.GetDB().Create(plugin).Error
+	return r.db.Create(plugin).Error
 }
 
-// FindByID 根据ID查找插件
-func (r *pluginRepository) FindByID(id uint) (*model.Plugin, error) {
+func (r *pluginRepository) GetByID(id uint) (*model.Plugin, error) {
 	var plugin model.Plugin
-	err := database.GetDB().Preload("Capabilities").First(&plugin, id).Error
+	err := r.db.Preload("Capabilities").First(&plugin, id).Error
 	if err != nil {
 		return nil, err
 	}
 	return &plugin, nil
 }
 
-// FindByName 根据名称查找插件
-func (r *pluginRepository) FindByName(name string) (*model.Plugin, error) {
+func (r *pluginRepository) GetByName(name string) (*model.Plugin, error) {
 	var plugin model.Plugin
-	err := database.GetDB().Where("name = ?", name).First(&plugin).Error
+	err := r.db.Preload("Capabilities").Where("name = ?", name).First(&plugin).Error
 	if err != nil {
 		return nil, err
 	}
 	return &plugin, nil
 }
 
-// List 获取插件列表
-func (r *pluginRepository) List(page, size int) ([]*model.Plugin, int64, error) {
-	var plugins []*model.Plugin
-	var total int64
-
-	db := database.GetDB().Model(&model.Plugin{})
-
-	if err := db.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	if err := db.Order("created_at DESC").
-		Offset((page - 1) * size).
-		Limit(size).
-		Find(&plugins).Error; err != nil {
-		return nil, 0, err
-	}
-
-	return plugins, total, nil
-}
-
-// ListByStatus 根据状态获取插件列表
-func (r *pluginRepository) ListByStatus(status string, page, size int) ([]*model.Plugin, int64, error) {
-	var plugins []*model.Plugin
-	var total int64
-
-	db := database.GetDB().Model(&model.Plugin{}).Where("status = ?", status)
-
-	if err := db.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	if err := db.Order("created_at DESC").
-		Offset((page - 1) * size).
-		Limit(size).
-		Find(&plugins).Error; err != nil {
-		return nil, 0, err
-	}
-
-	return plugins, total, nil
-}
-
-// Update 更新插件
 func (r *pluginRepository) Update(plugin *model.Plugin) error {
-	return database.GetDB().Save(plugin).Error
+	return r.db.Save(plugin).Error
 }
 
-// Delete 删除插件
 func (r *pluginRepository) Delete(id uint) error {
-	return database.GetDB().Delete(&model.Plugin{}, id).Error
+	return r.db.Delete(&model.Plugin{}, id).Error
 }
 
-// CreateCapability 创建插件能力
-func (r *pluginRepository) CreateCapability(cap *model.PluginCapability) error {
-	return database.GetDB().Create(cap).Error
-}
+func (r *pluginRepository) List(page, pageSize int) ([]*model.Plugin, int64, error) {
+	var plugins []*model.Plugin
+	var total int64
 
-// FindCapabilityByID 根据ID查找插件能力
-func (r *pluginRepository) FindCapabilityByID(id uint) (*model.PluginCapability, error) {
-	var cap model.PluginCapability
-	err := database.GetDB().First(&cap, id).Error
+	offset := (page - 1) * pageSize
+
+	err := r.db.Model(&model.Plugin{}).Count(&total).Error
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return &cap, nil
+
+	err = r.db.Preload("Capabilities").
+		Offset(offset).
+		Limit(pageSize).
+		Order("created_at DESC").
+		Find(&plugins).Error
+
+	return plugins, total, err
 }
 
-// FindCapabilitiesByPluginID 根据插件ID查找能力列表
-func (r *pluginRepository) FindCapabilitiesByPluginID(pluginID uint) ([]*model.PluginCapability, error) {
-	var caps []*model.PluginCapability
-	err := database.GetDB().
-		Where("plugin_id = ?", pluginID).
-		Find(&caps).Error
-	return caps, err
+func (r *pluginRepository) ListEnabled() ([]*model.Plugin, error) {
+	var plugins []*model.Plugin
+	err := r.db.Where("is_enabled = ?", true).
+		Preload("Capabilities").
+		Find(&plugins).Error
+	return plugins, err
 }
 
-// FindCapabilityByName 根据名称查找插件能力
-func (r *pluginRepository) FindCapabilityByName(pluginID uint, name string) (*model.PluginCapability, error) {
-	var cap model.PluginCapability
-	err := database.GetDB().
-		Where("plugin_id = ? AND name = ?", pluginID, name).
-		First(&cap).Error
-	if err != nil {
-		return nil, err
-	}
-	return &cap, nil
+func (r *pluginRepository) UpdateStatus(id uint, status string) error {
+	return r.db.Model(&model.Plugin{}).Where("id = ?", id).Update("status", status).Error
 }
 
-// UpdateCapability 更新插件能力
-func (r *pluginRepository) UpdateCapability(cap *model.PluginCapability) error {
-	return database.GetDB().Save(cap).Error
+func (r *pluginRepository) UpdateHealth(id uint, healthy bool, latencyMs int) error {
+	return r.db.Model(&model.Plugin{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"healthy":    healthy,
+		"latency_ms": latencyMs,
+	}).Error
 }
 
-// DeleteCapability 删除插件能力
+func (r *pluginRepository) UpdateLastPing(id uint) error {
+	now := time.Now()
+	return r.db.Model(&model.Plugin{}).Where("id = ?", id).Update("last_ping", &now).Error
+}
+
+func (r *pluginRepository) CreateCapability(capability *model.PluginCapability) error {
+	return r.db.Create(capability).Error
+}
+
+func (r *pluginRepository) GetCapabilitiesByPluginID(pluginID uint) ([]*model.PluginCapability, error) {
+	var capabilities []*model.PluginCapability
+	err := r.db.Where("plugin_id = ?", pluginID).Find(&capabilities).Error
+	return capabilities, err
+}
+
 func (r *pluginRepository) DeleteCapability(id uint) error {
-	return database.GetDB().Delete(&model.PluginCapability{}, id).Error
+	return r.db.Delete(&model.PluginCapability{}, id).Error
 }

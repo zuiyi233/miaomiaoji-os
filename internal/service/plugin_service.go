@@ -1,284 +1,235 @@
 package service
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/repository"
-	"novel-agent-os-backend/pkg/errors"
 	"novel-agent-os-backend/pkg/logger"
-
-	"gorm.io/datatypes"
 )
 
-// PluginService 插件服务接口
 type PluginService interface {
-	Register(name, description, version, entryPoint, manifest string) (*model.Plugin, error)
-	GetByID(id uint) (*model.Plugin, error)
-	GetByName(name string) (*model.Plugin, error)
-	List(page, size int) ([]*model.Plugin, int64, error)
-	ListByStatus(status string, page, size int) ([]*model.Plugin, int64, error)
-	UpdateStatus(id uint, status string) error
-	UpdateHealth(id uint, healthy bool, latency int) error
-	Delete(id uint) error
+	CreatePlugin(plugin *model.Plugin) error
+	GetPlugin(id uint) (*model.Plugin, error)
+	GetPluginByName(name string) (*model.Plugin, error)
+	UpdatePlugin(plugin *model.Plugin) error
+	DeletePlugin(id uint) error
+	ListPlugins(page, pageSize int) ([]*model.Plugin, int64, error)
+	ListEnabledPlugins() ([]*model.Plugin, error)
 
-	// 插件能力
-	AddCapability(pluginID uint, name, description, inputSchema, outputSchema string) (*model.PluginCapability, error)
-	GetCapability(id uint) (*model.PluginCapability, error)
-	ListCapabilities(pluginID uint) ([]*model.PluginCapability, error)
-	UpdateCapability(id uint, updates map[string]interface{}) error
-	DeleteCapability(id uint) error
+	EnablePlugin(id uint) error
+	DisablePlugin(id uint) error
 
-	// 调用插件能力
-	InvokeCapability(capabilityID uint, input map[string]interface{}, timeout time.Duration) (map[string]interface{}, error)
+	UpdatePluginHealth(id uint, healthy bool, latencyMs int) error
+	PingPlugin(id uint) error
+
+	AddCapability(capability *model.PluginCapability) error
+	GetCapabilities(pluginID uint) ([]*model.PluginCapability, error)
+	RemoveCapability(id uint) error
+
+	InvokePlugin(ctx context.Context, id uint, method string, payload map[string]interface{}, authorizationHeader string) (*PluginInvokeResult, error)
 }
 
-// pluginService 插件服务实现
+// PluginInvokeResult 插件调用结果
+type PluginInvokeResult struct {
+	Success  bool                   `json:"success"`
+	Data     map[string]interface{} `json:"data"`
+	Error    string                 `json:"error,omitempty"`
+	Metadata map[string]interface{} `json:"metadata"`
+}
+
 type pluginService struct {
 	pluginRepo repository.PluginRepository
 }
 
-// NewPluginService 创建插件服务实例
+type pluginInvokeRequest struct {
+	Method  string                 `json:"method"`
+	Payload map[string]interface{} `json:"payload"`
+}
+
 func NewPluginService(pluginRepo repository.PluginRepository) PluginService {
 	return &pluginService{
 		pluginRepo: pluginRepo,
 	}
 }
 
-// Register 注册插件
-func (s *pluginService) Register(name, description, version, entryPoint, manifest string) (*model.Plugin, error) {
-	// 检查插件名是否已存在
-	existing, _ := s.pluginRepo.FindByName(name)
-	if existing != nil {
-		return nil, errors.ErrAlreadyExists
-	}
-
-	plugin := &model.Plugin{
-		Name:        name,
-		Description: description,
-		Version:     version,
-		EntryPoint:  entryPoint,
-		Manifest:    datatypes.JSON(manifest),
-		Status:      "disabled",
-		Healthy:     false,
-	}
-
-	if err := s.pluginRepo.Create(plugin); err != nil {
-		logger.Error("注册插件失败", logger.Err(err))
-		return nil, errors.ErrInternalServer
-	}
-
-	return plugin, nil
+func (s *pluginService) CreatePlugin(plugin *model.Plugin) error {
+	return s.pluginRepo.Create(plugin)
 }
 
-// GetByID 根据ID获取插件
-func (s *pluginService) GetByID(id uint) (*model.Plugin, error) {
-	plugin, err := s.pluginRepo.FindByID(id)
+func (s *pluginService) GetPlugin(id uint) (*model.Plugin, error) {
+	return s.pluginRepo.GetByID(id)
+}
+
+func (s *pluginService) GetPluginByName(name string) (*model.Plugin, error) {
+	return s.pluginRepo.GetByName(name)
+}
+
+func (s *pluginService) UpdatePlugin(plugin *model.Plugin) error {
+	return s.pluginRepo.Update(plugin)
+}
+
+func (s *pluginService) DeletePlugin(id uint) error {
+	return s.pluginRepo.Delete(id)
+}
+
+func (s *pluginService) ListPlugins(page, pageSize int) ([]*model.Plugin, int64, error) {
+	return s.pluginRepo.List(page, pageSize)
+}
+
+func (s *pluginService) ListEnabledPlugins() ([]*model.Plugin, error) {
+	return s.pluginRepo.ListEnabled()
+}
+
+func (s *pluginService) EnablePlugin(id uint) error {
+	plugin, err := s.pluginRepo.GetByID(id)
 	if err != nil {
-		return nil, errors.ErrPluginNotFound
+		return err
 	}
-	return plugin, nil
+	plugin.IsEnabled = true
+	plugin.Status = "enabled"
+	return s.pluginRepo.Update(plugin)
 }
 
-// GetByName 根据名称获取插件
-func (s *pluginService) GetByName(name string) (*model.Plugin, error) {
-	plugin, err := s.pluginRepo.FindByName(name)
+func (s *pluginService) DisablePlugin(id uint) error {
+	plugin, err := s.pluginRepo.GetByID(id)
 	if err != nil {
-		return nil, errors.ErrPluginNotFound
+		return err
 	}
-	return plugin, nil
+	plugin.IsEnabled = false
+	plugin.Status = "disabled"
+	return s.pluginRepo.Update(plugin)
 }
 
-// List 获取插件列表
-func (s *pluginService) List(page, size int) ([]*model.Plugin, int64, error) {
-	return s.pluginRepo.List(page, size)
+func (s *pluginService) UpdatePluginHealth(id uint, healthy bool, latencyMs int) error {
+	return s.pluginRepo.UpdateHealth(id, healthy, latencyMs)
 }
 
-// ListByStatus 根据状态获取插件列表
-func (s *pluginService) ListByStatus(status string, page, size int) ([]*model.Plugin, int64, error) {
-	return s.pluginRepo.ListByStatus(status, page, size)
+func (s *pluginService) PingPlugin(id uint) error {
+	return s.pluginRepo.UpdateLastPing(id)
 }
 
-// UpdateStatus 更新插件状态
-func (s *pluginService) UpdateStatus(id uint, status string) error {
-	plugin, err := s.pluginRepo.FindByID(id)
+func (s *pluginService) AddCapability(capability *model.PluginCapability) error {
+	return s.pluginRepo.CreateCapability(capability)
+}
+
+func (s *pluginService) GetCapabilities(pluginID uint) ([]*model.PluginCapability, error) {
+	return s.pluginRepo.GetCapabilitiesByPluginID(pluginID)
+}
+
+func (s *pluginService) RemoveCapability(id uint) error {
+	return s.pluginRepo.DeleteCapability(id)
+}
+
+func (s *pluginService) InvokePlugin(ctx context.Context, id uint, method string, payload map[string]interface{}, authorizationHeader string) (*PluginInvokeResult, error) {
+	plugin, err := s.pluginRepo.GetByID(id)
 	if err != nil {
-		return errors.ErrPluginNotFound
+		return nil, err
 	}
 
-	// 验证状态值
-	validStatuses := map[string]bool{
-		"enabled":  true,
-		"disabled": true,
-	}
-	if !validStatuses[status] {
-		return errors.ErrValidationError
+	if !plugin.IsEnabled {
+		return nil, fmt.Errorf("插件已禁用")
 	}
 
-	plugin.Status = status
-	if err := s.pluginRepo.Update(plugin); err != nil {
-		logger.Error("更新插件状态失败", logger.Err(err))
-		return errors.ErrInternalServer
+	endpoint := strings.TrimSpace(plugin.Endpoint)
+	if endpoint == "" {
+		return nil, fmt.Errorf("插件未配置 endpoint")
 	}
 
-	return nil
-}
-
-// UpdateHealth 更新插件健康状态
-func (s *pluginService) UpdateHealth(id uint, healthy bool, latency int) error {
-	plugin, err := s.pluginRepo.FindByID(id)
+	targetURL, err := buildPluginInvokeURL(endpoint)
 	if err != nil {
-		return errors.ErrPluginNotFound
+		return nil, err
 	}
 
-	plugin.Healthy = healthy
-	plugin.LatencyMs = latency
-	now := time.Now()
-	plugin.LastHeartbeat = &now
-
-	if err := s.pluginRepo.Update(plugin); err != nil {
-		logger.Error("更新插件健康状态失败", logger.Err(err))
-		return errors.ErrInternalServer
-	}
-
-	return nil
-}
-
-// Delete 删除插件
-func (s *pluginService) Delete(id uint) error {
-	_, err := s.pluginRepo.FindByID(id)
+	reqBody, err := json.Marshal(pluginInvokeRequest{Method: method, Payload: payload})
 	if err != nil {
-		return errors.ErrPluginNotFound
+		return nil, fmt.Errorf("序列化插件请求失败: %w", err)
 	}
 
-	if err := s.pluginRepo.Delete(id); err != nil {
-		logger.Error("删除插件失败", logger.Err(err))
-		return errors.ErrInternalServer
+	if ctx == nil {
+		ctx = context.Background()
 	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 
-	return nil
-}
-
-// AddCapability 添加插件能力
-func (s *pluginService) AddCapability(pluginID uint, name, description, inputSchema, outputSchema string) (*model.PluginCapability, error) {
-	// 验证插件是否存在
-	_, err := s.pluginRepo.FindByID(pluginID)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(reqBody))
 	if err != nil {
-		return nil, errors.ErrPluginNotFound
+		return nil, fmt.Errorf("创建插件请求失败: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(authorizationHeader) != "" {
+		httpReq.Header.Set("Authorization", authorizationHeader)
 	}
 
-	// 检查能力名是否已存在
-	existing, _ := s.pluginRepo.FindCapabilityByName(pluginID, name)
-	if existing != nil {
-		return nil, errors.ErrAlreadyExists
-	}
+	start := time.Now()
+	resp, err := http.DefaultClient.Do(httpReq)
+	latencyMs := int(time.Since(start).Milliseconds())
 
-	cap := &model.PluginCapability{
-		PluginID:     pluginID,
-		Name:         name,
-		Description:  description,
-		InputSchema:  datatypes.JSON(inputSchema),
-		OutputSchema: datatypes.JSON(outputSchema),
-	}
+	// 无论成功/失败，都尝试更新健康状态（不影响主流程返回）
+	defer func() {
+		healthy := err == nil && resp != nil && resp.StatusCode >= 200 && resp.StatusCode < 300
+		if uErr := s.pluginRepo.UpdateHealth(id, healthy, latencyMs); uErr != nil {
+			logger.Warn("更新插件健康状态失败", logger.Err(uErr), logger.Uint("plugin_id", id))
+		}
+	}()
 
-	if err := s.pluginRepo.CreateCapability(cap); err != nil {
-		logger.Error("添加插件能力失败", logger.Err(err))
-		return nil, errors.ErrInternalServer
-	}
-
-	return cap, nil
-}
-
-// GetCapability 获取插件能力
-func (s *pluginService) GetCapability(id uint) (*model.PluginCapability, error) {
-	cap, err := s.pluginRepo.FindCapabilityByID(id)
 	if err != nil {
-		return nil, errors.ErrPluginCapNotFound
+		logger.Error("插件调用失败", logger.Err(err), logger.Uint("plugin_id", id), logger.String("url", targetURL))
+		return nil, fmt.Errorf("插件调用失败: %w", err)
 	}
-	return cap, nil
-}
+	defer resp.Body.Close()
 
-// ListCapabilities 获取插件能力列表
-func (s *pluginService) ListCapabilities(pluginID uint) ([]*model.PluginCapability, error) {
-	// 验证插件是否存在
-	_, err := s.pluginRepo.FindByID(pluginID)
-	if err != nil {
-		return nil, errors.ErrPluginNotFound
+	raw, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, fmt.Errorf("读取插件响应失败: %w", readErr)
 	}
 
-	return s.pluginRepo.FindCapabilitiesByPluginID(pluginID)
-}
-
-// UpdateCapability 更新插件能力
-func (s *pluginService) UpdateCapability(id uint, updates map[string]interface{}) error {
-	cap, err := s.pluginRepo.FindCapabilityByID(id)
-	if err != nil {
-		return errors.ErrPluginCapNotFound
+	// 非 2xx 认为调用失败，尽量把响应内容带出来便于排查
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		msg := strings.TrimSpace(string(raw))
+		if msg == "" {
+			msg = resp.Status
+		}
+		return nil, fmt.Errorf("插件返回非成功状态: %s", msg)
 	}
 
-	if description, ok := updates["description"].(string); ok {
-		cap.Description = description
-	}
-	if inputSchema, ok := updates["input_schema"].(string); ok {
-		cap.InputSchema = datatypes.JSON(inputSchema)
-	}
-	if outputSchema, ok := updates["output_schema"].(string); ok {
-		cap.OutputSchema = datatypes.JSON(outputSchema)
-	}
-
-	if err := s.pluginRepo.UpdateCapability(cap); err != nil {
-		logger.Error("更新插件能力失败", logger.Err(err))
-		return errors.ErrInternalServer
+	data := map[string]interface{}{}
+	if len(raw) > 0 {
+		if jErr := json.Unmarshal(raw, &data); jErr != nil {
+			// 插件返回不一定是 JSON 对象，兜底保留原始文本
+			data = map[string]interface{}{
+				"raw": string(raw),
+			}
+		}
 	}
 
-	return nil
-}
-
-// DeleteCapability 删除插件能力
-func (s *pluginService) DeleteCapability(id uint) error {
-	_, err := s.pluginRepo.FindCapabilityByID(id)
-	if err != nil {
-		return errors.ErrPluginCapNotFound
-	}
-
-	if err := s.pluginRepo.DeleteCapability(id); err != nil {
-		logger.Error("删除插件能力失败", logger.Err(err))
-		return errors.ErrInternalServer
-	}
-
-	return nil
-}
-
-// InvokeCapability 调用插件能力
-func (s *pluginService) InvokeCapability(capabilityID uint, input map[string]interface{}, timeout time.Duration) (map[string]interface{}, error) {
-	cap, err := s.pluginRepo.FindCapabilityByID(capabilityID)
-	if err != nil {
-		return nil, errors.ErrPluginCapNotFound
-	}
-
-	// 获取插件信息
-	plugin, err := s.pluginRepo.FindByID(cap.PluginID)
-	if err != nil {
-		return nil, errors.ErrPluginNotFound
-	}
-
-	// 检查插件状态
-	if plugin.Status != "enabled" {
-		return nil, errors.ErrPluginDisabled
-	}
-	if !plugin.Healthy {
-		return nil, errors.ErrPluginOffline
-	}
-
-	// TODO: 实际调用插件（通过 HTTP/gRPC 等方式）
-	// 这里返回模拟结果
-	logger.Info("调用插件能力",
-		logger.String("plugin", plugin.Name),
-		logger.String("capability", cap.Name),
-	)
-
-	return map[string]interface{}{
-		"status": "success",
-		"data":   input,
+	return &PluginInvokeResult{
+		Success:  true,
+		Data:     data,
+		Metadata: map[string]interface{}{"latency_ms": latencyMs, "url": targetURL},
 	}, nil
+}
+
+func buildPluginInvokeURL(endpoint string) (string, error) {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("解析插件 endpoint 失败: %w", err)
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return "", fmt.Errorf("插件 endpoint 必须是完整 URL（例如 http://127.0.0.1:9000）")
+	}
+
+	// 约定：如果 endpoint 只给到 host（path 为空或 /），默认调用 /invoke
+	if u.Path == "" || u.Path == "/" {
+		u.Path = "/invoke"
+	}
+	return u.String(), nil
 }

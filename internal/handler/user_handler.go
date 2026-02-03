@@ -1,15 +1,13 @@
 package handler
 
 import (
-	"strconv"
-
-	"github.com/gin-gonic/gin"
-	"novel-agent-os-backend/internal/middleware"
 	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/service"
 	"novel-agent-os-backend/pkg/errors"
 	"novel-agent-os-backend/pkg/logger"
 	"novel-agent-os-backend/pkg/response"
+
+	"github.com/gin-gonic/gin"
 )
 
 // UserHandler 用户处理器
@@ -43,7 +41,7 @@ type ProfileResponse struct {
 
 // GetProfile 获取当前用户信息
 func (h *UserHandler) GetProfile(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID := getUserIDFromContext(c)
 	if userID == 0 {
 		response.Fail(c, errors.CodeUnauthorized, "未登录")
 		return
@@ -69,7 +67,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 
 // UpdateProfile 更新用户信息
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID := getUserIDFromContext(c)
 	if userID == 0 {
 		response.Fail(c, errors.CodeUnauthorized, "未登录")
 		return
@@ -114,7 +112,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 // CheckIn 每日签到
 func (h *UserHandler) CheckIn(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID := getUserIDFromContext(c)
 	if userID == 0 {
 		response.Fail(c, errors.CodeUnauthorized, "未登录")
 		return
@@ -135,7 +133,7 @@ func (h *UserHandler) CheckIn(c *gin.Context) {
 
 // GetPoints 获取积分详情
 func (h *UserHandler) GetPoints(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID := getUserIDFromContext(c)
 	if userID == 0 {
 		response.Fail(c, errors.CodeUnauthorized, "未登录")
 		return
@@ -149,7 +147,7 @@ func (h *UserHandler) GetPoints(c *gin.Context) {
 	}
 
 	response.SuccessWithData(c, gin.H{
-		"points":         user.Points,
+		"points":          user.Points,
 		"check_in_streak": user.CheckInStreak,
 	})
 }
@@ -233,12 +231,3 @@ func (h *UserHandler) UpdateUserStatus(c *gin.Context) {
 
 	response.Success(c)
 }
-
-// parseUintParam 解析uint参数
-func parseUintParam(c *gin.Context, key string) (uint, error) {
-	idStr := c.Param(key)
-	id, err := strconv.ParseUint(idStr, 10, 32)
-	return uint(id), err
-}
-
-

@@ -940,7 +940,7 @@ type Storage interface {
 
 ```yaml
 app:
-  name: novel-agent-os
+  name: novel-agent-os-backend
   env: development
   debug: true
 
@@ -1073,7 +1073,7 @@ storage:
 ```
 第1步：工程初始化
   └── 复制 rulebacktest-main 模板
-  └── 修改 go.mod 为 novel-agent-os
+  └── 修改 go.mod 为 novel-agent-os-backend
   └── 配置 config.yaml 双环境
   └── 初始化空服务可运行
 

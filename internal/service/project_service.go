@@ -1,3 +1,4 @@
+// Package service 项目服务
 package service
 
 import (
@@ -6,27 +7,62 @@ import (
 
 	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/repository"
+	"novel-agent-os-backend/pkg/logger"
 )
 
 // ProjectService 项目服务接口
 type ProjectService interface {
 	Create(userID uint, title, genre string, tags []string, coreConflict, characterArc, ultimateValue, worldRules string, aiSettings map[string]interface{}) (*model.Project, error)
 	GetByID(id uint) (*model.Project, error)
-	GetByIDWithDetails(id uint) (*model.Project, error)
+	GetByIDWithDetails(id uint) (*ProjectDetailResult, error)
 	ListByUserID(userID uint, page, size int) ([]*model.Project, int64, error)
 	Update(id uint, updates map[string]interface{}) (*model.Project, error)
 	Delete(id uint) error
+	ExportProject(id uint) (*ProjectExport, error)
+}
+
+// ProjectDetailResult 项目详情结果
+type ProjectDetailResult struct {
+	Project   *model.Project    `json:"project"`
+	Volumes   []*model.Volume   `json:"volumes"`
+	Documents []*model.Document `json:"documents"`
+	Entities  []*model.Entity   `json:"entities"`
+	Templates []*model.Template `json:"templates"`
+}
+
+// ProjectExport 项目导出数据结构
+type ProjectExport struct {
+	Project   *model.Project         `json:"project"`
+	Volumes   []*model.Volume        `json:"volumes"`
+	Documents []*model.Document      `json:"documents"`
+	Entities  []*model.Entity        `json:"entities"`
+	Templates []*model.Template      `json:"templates"`
+	Metadata  map[string]interface{} `json:"metadata"`
 }
 
 // projectService 项目服务实现
 type projectService struct {
-	projectRepo repository.ProjectRepository
+	projectRepo  repository.ProjectRepository
+	volumeRepo   repository.VolumeRepository
+	documentRepo repository.DocumentRepository
+	entityRepo   repository.EntityRepository
+	templateRepo repository.TemplateRepository
 }
 
 // NewProjectService 创建项目服务实例
-func NewProjectService(projectRepo repository.ProjectRepository) ProjectService {
+func NewProjectService(
+	projectRepo repository.ProjectRepository,
+	volumeRepo repository.VolumeRepository,
+	documentRepo repository.DocumentRepository,
+	entityRepo repository.EntityRepository,
+	templateRepo repository.TemplateRepository,
+) ProjectService {
 	return &projectService{
-		projectRepo: projectRepo,
+		projectRepo:  projectRepo,
+		volumeRepo:   volumeRepo,
+		documentRepo: documentRepo,
+		entityRepo:   entityRepo,
+		templateRepo: templateRepo,
 	}
 }
 
@@ -34,7 +70,7 @@ func NewProjectService(projectRepo repository.ProjectRepository) ProjectService 
 func (s *projectService) Create(userID uint, title, genre string, tags []string, coreConflict, characterArc, ultimateValue, worldRules string, aiSettings map[string]interface{}) (*model.Project, error) {
 	// 序列化标签
 	tagsJSON, _ := json.Marshal(tags)
-	
+
 	// 序列化AI设置
 	aiSettingsJSON, _ := json.Marshal(aiSettings)
 
@@ -63,16 +99,43 @@ func (s *projectService) GetByID(id uint) (*model.Project, error) {
 }
 
 // GetByIDWithDetails 根据ID获取项目详情（含关联数据）
-func (s *projectService) GetByIDWithDetails(id uint) (*model.Project, error) {
+func (s *projectService) GetByIDWithDetails(id uint) (*ProjectDetailResult, error) {
+	// 加载项目基本信息
 	project, err := s.projectRepo.FindByID(id)
 	if err != nil {
 		return nil, err
 	}
-	
-	// TODO: 加载关联数据（volumes, documents, entities, templates）
-	// 这里可以通过预加载实现
-	
-	return project, nil
+
+	logger.Debug("加载项目关联数据", logger.Uint("project_id", id))
+
+	// 加载卷列表
+	volumes, _, _ := s.volumeRepo.FindByProjectID(id, 1, 1000)
+
+	// 加载文档列表
+	documents, _, _ := s.documentRepo.FindByProjectID(id, 1, 1000)
+
+	// 加载实体列表
+	entities, _, _ := s.entityRepo.FindByProjectID(id, 1, 1000)
+
+	// 加载模板列表
+	templates, _, _ := s.templateRepo.FindByProjectID(id, 1, 1000)
+
+	result := &ProjectDetailResult{
+		Project:   project,
+		Volumes:   volumes,
+		Documents: documents,
+		Entities:  entities,
+		Templates: templates,
+	}
+
+	logger.Info("项目详情加载完成",
+		logger.Uint("project_id", id),
+		logger.Int("volumes_count", len(volumes)),
+		logger.Int("documents_count", len(documents)),
+		logger.Int("entities_count", len(entities)),
+		logger.Int("templates_count", len(templates)))
+
+	return result, nil
 }
 
 // ListByUserID 获取用户的项目列表
@@ -135,4 +198,37 @@ func (s *projectService) Delete(id uint) error {
 		return errors.New("project not found")
 	}
 	return s.projectRepo.Delete(id)
+}
+
+// ExportProject 导出项目
+func (s *projectService) ExportProject(id uint) (*ProjectExport, error) {
+	// 获取项目详情
+	details, err := s.GetByIDWithDetails(id)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("开始导出项目", logger.Uint("project_id", id))
+
+	export := &ProjectExport{
+		Project:   details.Project,
+		Volumes:   details.Volumes,
+		Documents: details.Documents,
+		Entities:  details.Entities,
+		Templates: details.Templates,
+		Metadata: map[string]interface{}{
+			"version":         "1.0",
+			"export_type":     "full",
+			"volumes_count":   len(details.Volumes),
+			"documents_count": len(details.Documents),
+			"entities_count":  len(details.Entities),
+			"templates_count": len(details.Templates),
+		},
+	}
+
+	logger.Info("项目导出完成",
+		logger.Uint("project_id", id),
+		logger.Int("total_items", len(details.Volumes)+len(details.Documents)+len(details.Entities)+len(details.Templates)))
+
+	return export, nil
 }

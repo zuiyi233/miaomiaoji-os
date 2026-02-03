@@ -16,7 +16,7 @@ type Project struct {
 	WorldRules    string         `gorm:"type:text" json:"world_rules"`
 	AISettings    datatypes.JSON `json:"ai_settings"`
 	UserID        uint           `gorm:"index;not null" json:"user_id"`
-	
+
 	// 关联
 	Volumes   []Volume   `gorm:"foreignKey:ProjectID" json:"volumes,omitempty"`
 	Documents []Document `gorm:"foreignKey:ProjectID" json:"documents,omitempty"`

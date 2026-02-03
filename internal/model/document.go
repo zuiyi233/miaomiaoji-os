@@ -47,7 +47,7 @@ type DocumentEntityRef struct {
 	EntityID   uint           `gorm:"index;not null" json:"entity_id"`
 	RefType    string         `gorm:"size:20;default:mention" json:"ref_type"`
 	Metadata   datatypes.JSON `json:"metadata"`
-	
+
 	// 关联
 	Document Document `gorm:"foreignKey:DocumentID" json:"document,omitempty"`
 	Entity   Entity   `gorm:"foreignKey:EntityID" json:"entity,omitempty"`

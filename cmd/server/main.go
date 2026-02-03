@@ -100,6 +100,7 @@ func autoMigrate() error {
 		&model.PluginCapability{},
 		&model.Session{},
 		&model.SessionStep{},
+		&model.Job{},
 		&model.SettlementEntry{},
 		&model.CorpusStory{},
 		&model.File{},
