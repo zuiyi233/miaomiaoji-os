@@ -37,9 +37,10 @@ type LoginRequest struct {
 
 // AuthResponse 认证响应
 type AuthResponse struct {
-	Token     string   `json:"token"`
-	ExpiresIn int      `json:"expires_in"`
-	User      UserInfo `json:"user"`
+	Token              string   `json:"token"`
+	ExpiresIn          int      `json:"expires_in"`
+	MustChangePassword bool     `json:"must_change_password"`
+	User               UserInfo `json:"user"`
 }
 
 // UserInfo 用户信息
@@ -84,8 +85,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	response.SuccessWithData(c, AuthResponse{
-		Token:     token,
-		ExpiresIn: 24 * 3600, // 24小时
+		Token:              token,
+		ExpiresIn:          24 * 3600, // 24小时
+		MustChangePassword: user.MustChangePassword,
 		User: UserInfo{
 			ID:       user.ID,
 			Username: user.Username,
@@ -121,8 +123,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	response.SuccessWithData(c, AuthResponse{
-		Token:     token,
-		ExpiresIn: 24 * 3600, // 24小时
+		Token:              token,
+		ExpiresIn:          24 * 3600, // 24小时
+		MustChangePassword: user.MustChangePassword,
 		User: UserInfo{
 			ID:       user.ID,
 			Username: user.Username,

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/repository"
@@ -15,6 +16,8 @@ type UserService interface {
 	Login(username, password string) (*model.User, error)
 	GetUserByID(id uint) (*model.User, error)
 	UpdateUser(user *model.User) error
+	ChangePassword(userID uint, newPassword string) error
+	EnsureDefaultAdmin() error
 	CheckIn(userID uint) error
 	ListUsers(page, size int) ([]*model.User, int64, error)
 }
@@ -43,6 +46,10 @@ func (s *userService) Register(username, password, email, nickname string) (*mod
 		if _, err := s.userRepo.FindByEmail(email); err == nil {
 			return nil, errors.New("email already exists")
 		}
+	}
+
+	if nickname == "" {
+		nickname = "用户-" + uuid.New().String()[:8]
 	}
 
 	// 密码加密
@@ -95,6 +102,53 @@ func (s *userService) GetUserByID(id uint) (*model.User, error) {
 // UpdateUser 更新用户信息
 func (s *userService) UpdateUser(user *model.User) error {
 	return s.userRepo.Update(user)
+}
+
+// ChangePassword 修改用户密码
+func (s *userService) ChangePassword(userID uint, newPassword string) error {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return err
+	}
+
+	if user.Status != model.StatusEnabled {
+		return errors.New("account is disabled")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	user.Password = string(hashedPassword)
+	user.MustChangePassword = false
+	return s.userRepo.Update(user)
+}
+
+// EnsureDefaultAdmin 确保默认管理员账号存在
+func (s *userService) EnsureDefaultAdmin() error {
+	const defaultUsername = "admin"
+	const defaultPassword = "admin"
+
+	if _, err := s.userRepo.FindByUsername(defaultUsername); err == nil {
+		return nil
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(defaultPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	user := &model.User{
+		Username:           defaultUsername,
+		Password:           string(hashedPassword),
+		Nickname:           "管理员",
+		Role:               "admin",
+		Status:             model.StatusEnabled,
+		MustChangePassword: true,
+	}
+
+	return s.userRepo.Create(user)
 }
 
 // CheckIn 每日签到

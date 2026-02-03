@@ -16,6 +16,8 @@ type User struct {
 	Points        int        `gorm:"default:0" json:"points"`
 	CheckInStreak int        `gorm:"default:0" json:"check_in_streak"`
 	LastCheckIn   *time.Time `json:"last_check_in,omitempty"`
+	// MustChangePassword 是否需要修改密码（默认管理员首次登录提示修改）
+	MustChangePassword bool `gorm:"default:false" json:"must_change_password"`
 }
 
 // TableName 指定表名

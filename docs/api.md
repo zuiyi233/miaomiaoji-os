@@ -145,7 +145,26 @@
   "password": "string (required)"
 }
 ```
-- **响应**: 同注册接口
+- **响应**:
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "token": "string",
+    "expires_in": 86400,
+    "must_change_password": false,
+    "user": {
+      "id": 1,
+      "username": "string",
+      "nickname": "string",
+      "email": "string",
+      "role": "user",
+      "points": 0
+    }
+  }
+}
+```
 
 ### 用户退出
 - **URL**: `POST /api/v1/auth/logout`
@@ -195,7 +214,8 @@
     "email": "string",
     "role": "user",
     "points": 0,
-    "check_in_streak": 0
+    "check_in_streak": 0,
+    "must_change_password": false
   }
 }
 ```
@@ -212,6 +232,24 @@
 }
 ```
 - **响应**: 同获取用户信息
+
+### 修改密码
+- **URL**: `PUT /api/v1/users/password`
+- **描述**: 修改当前用户密码
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "new_password": "string (required, min:6, max:100)"
+}
+```
+- **响应**:
+```json
+{
+  "code": 0,
+  "message": "success"
+}
+```
 
 ### 每日签到
 - **URL**: `POST /api/v1/users/check-in`

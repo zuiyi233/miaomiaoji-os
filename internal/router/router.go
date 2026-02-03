@@ -120,6 +120,7 @@ func Setup() *gin.Engine {
 			// 需要登录的路由
 			users.GET("/profile", middleware.JWTAuth(), userHandler.GetProfile)
 			users.PUT("/profile", middleware.JWTAuth(), userHandler.UpdateProfile)
+			users.PUT("/password", middleware.JWTAuth(), userHandler.ChangePassword)
 			users.POST("/check-in", middleware.JWTAuth(), userHandler.CheckIn)
 			users.GET("/points", middleware.JWTAuth(), userHandler.GetPoints)
 
@@ -131,6 +132,7 @@ func Setup() *gin.Engine {
 		// 项目路由
 		projects := v1.Group("/projects")
 		{
+			projects.GET("", middleware.JWTAuth(), projectHandler.List)
 			projects.GET("/", middleware.JWTAuth(), projectHandler.List)
 			projects.POST("/", middleware.JWTAuth(), projectHandler.Create)
 			projects.GET("/:project_id", middleware.JWTAuth(), projectHandler.GetByID)
@@ -232,6 +234,7 @@ func Setup() *gin.Engine {
 		{
 			sessions.POST("", middleware.JWTAuth(), sessionHandler.CreateSession)
 			sessions.GET("", middleware.JWTAuth(), sessionHandler.ListSessions)
+			sessions.GET("/projects/:project_id", middleware.JWTAuth(), sessionHandler.ListSessionsByProject)
 			sessions.GET("/:session_id", middleware.JWTAuth(), sessionHandler.GetSession)
 			sessions.PUT("/:session_id", middleware.JWTAuth(), sessionHandler.UpdateSession)
 			sessions.DELETE("/:session_id", middleware.JWTAuth(), sessionHandler.DeleteSession)

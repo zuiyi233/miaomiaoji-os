@@ -11,7 +11,9 @@ import (
 	"novel-agent-os-backend/internal/config"
 	"novel-agent-os-backend/internal/middleware"
 	"novel-agent-os-backend/internal/model"
+	"novel-agent-os-backend/internal/repository"
 	"novel-agent-os-backend/internal/router"
+	"novel-agent-os-backend/internal/service"
 	"novel-agent-os-backend/pkg/database"
 	"novel-agent-os-backend/pkg/logger"
 )
@@ -64,6 +66,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := ensureDefaultAdmin(); err != nil {
+		logger.Error("Failed to ensure default admin", logger.Err(err))
+		os.Exit(1)
+	}
+
 	r := router.Setup()
 
 	go func() {
@@ -105,4 +112,10 @@ func autoMigrate() error {
 		&model.CorpusStory{},
 		&model.File{},
 	)
+}
+
+func ensureDefaultAdmin() error {
+	userRepo := repository.NewUserRepository()
+	userService := service.NewUserService(userRepo)
+	return userService.EnsureDefaultAdmin()
 }

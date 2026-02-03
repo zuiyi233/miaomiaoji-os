@@ -28,15 +28,21 @@ type UpdateProfileRequest struct {
 	Email    string `json:"email" binding:"omitempty,email"`
 }
 
+// ChangePasswordRequest 修改密码请求
+type ChangePasswordRequest struct {
+	NewPassword string `json:"new_password" binding:"required,min=6,max=100"`
+}
+
 // ProfileResponse 用户资料响应
 type ProfileResponse struct {
-	ID            uint   `json:"id"`
-	Username      string `json:"username"`
-	Nickname      string `json:"nickname"`
-	Email         string `json:"email"`
-	Role          string `json:"role"`
-	Points        int    `json:"points"`
-	CheckInStreak int    `json:"check_in_streak"`
+	ID                 uint   `json:"id"`
+	Username           string `json:"username"`
+	Nickname           string `json:"nickname"`
+	Email              string `json:"email"`
+	Role               string `json:"role"`
+	Points             int    `json:"points"`
+	CheckInStreak      int    `json:"check_in_streak"`
+	MustChangePassword bool   `json:"must_change_password"`
 }
 
 // GetProfile 获取当前用户信息
@@ -55,13 +61,14 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	}
 
 	response.SuccessWithData(c, ProfileResponse{
-		ID:            user.ID,
-		Username:      user.Username,
-		Nickname:      user.Nickname,
-		Email:         user.Email,
-		Role:          user.Role,
-		Points:        user.Points,
-		CheckInStreak: user.CheckInStreak,
+		ID:                 user.ID,
+		Username:           user.Username,
+		Nickname:           user.Nickname,
+		Email:              user.Email,
+		Role:               user.Role,
+		Points:             user.Points,
+		CheckInStreak:      user.CheckInStreak,
+		MustChangePassword: user.MustChangePassword,
 	})
 }
 
@@ -100,14 +107,38 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	response.SuccessWithData(c, ProfileResponse{
-		ID:            user.ID,
-		Username:      user.Username,
-		Nickname:      user.Nickname,
-		Email:         user.Email,
-		Role:          user.Role,
-		Points:        user.Points,
-		CheckInStreak: user.CheckInStreak,
+		ID:                 user.ID,
+		Username:           user.Username,
+		Nickname:           user.Nickname,
+		Email:              user.Email,
+		Role:               user.Role,
+		Points:             user.Points,
+		CheckInStreak:      user.CheckInStreak,
+		MustChangePassword: user.MustChangePassword,
 	})
+}
+
+// ChangePassword 修改密码
+func (h *UserHandler) ChangePassword(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "未登录")
+		return
+	}
+
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, errors.CodeInvalidParams, err.Error())
+		return
+	}
+
+	if err := h.userService.ChangePassword(userID, req.NewPassword); err != nil {
+		logger.Error("Change password failed", logger.Err(err), logger.Uint("user_id", userID))
+		response.Fail(c, errors.CodeDatabaseError, "修改密码失败")
+		return
+	}
+
+	response.Success(c)
 }
 
 // CheckIn 每日签到
