@@ -542,6 +542,159 @@
 
 ---
 
+## 会话接口（Sessions）
+
+### 创建会话
+- **URL**: `POST /api/v1/sessions`
+- **描述**: 创建工作流会话
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "title": "string (required, max:200)",
+  "mode": "string (required, max:50)",
+  "project_id": "uint (required)"
+}
+```
+- **响应（data）**: Session
+
+### 获取会话列表
+- **URL**: `GET /api/v1/sessions?page=1&page_size=20`
+- **描述**: 获取当前用户的会话列表（分页）
+- **认证**: 是
+- **响应（data）**:
+```json
+{
+  "sessions": [],
+  "total": 0,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+### 获取会话详情
+- **URL**: `GET /api/v1/sessions/:session_id`
+- **描述**: 获取会话详情
+- **认证**: 是
+- **响应（data）**: Session
+
+### 更新会话
+- **URL**: `PUT /api/v1/sessions/:session_id`
+- **描述**: 更新会话（部分字段可选）
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "title": "string (optional, max:200)",
+  "mode": "string (optional, max:50)"
+}
+```
+- **响应（data）**: Session
+
+### 删除会话
+- **URL**: `DELETE /api/v1/sessions/:session_id`
+- **描述**: 删除会话
+- **认证**: 是
+- **响应**: 成功响应
+
+---
+
+## 会话步骤接口（Session Steps）
+
+### 创建步骤
+- **URL**: `POST /api/v1/sessions/:session_id/steps`
+- **描述**: 在指定会话下创建步骤
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "title": "string (required, max:200)",
+  "content": "string",
+  "format_type": "string (max:50)",
+  "order_index": "int"
+}
+```
+- **响应（data）**: SessionStep
+
+### 获取步骤列表
+- **URL**: `GET /api/v1/sessions/:session_id/steps`
+- **描述**: 获取指定会话下的步骤列表
+- **认证**: 是
+- **响应（data）**: SessionStep[]
+
+### 获取步骤详情
+- **URL**: `GET /api/v1/sessions/steps/:id`
+- **描述**: 获取步骤详情
+- **认证**: 是
+- **响应（data）**: SessionStep
+
+### 更新步骤
+- **URL**: `PUT /api/v1/sessions/steps/:id`
+- **描述**: 更新步骤（部分字段可选）
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "title": "string (optional, max:200)",
+  "content": "string (optional)",
+  "format_type": "string (optional, max:50)",
+  "order_index": "int (optional)"
+}
+```
+- **响应（data）**: SessionStep
+
+### 删除步骤
+- **URL**: `DELETE /api/v1/sessions/steps/:id`
+- **描述**: 删除步骤
+- **认证**: 是
+- **响应**: 成功响应
+
+---
+
+## SSE 接口
+
+### 订阅会话流
+- **URL**: `GET /api/v1/sse/stream?session_id=1`
+- **描述**: 订阅指定 session 的实时事件流（用于工作流进度/输出推送）
+- **认证**: 是
+- **响应**: `text/event-stream`
+- **事件格式**:
+```
+event: <type>
+data: <json>
+
+```
+- **事件类型（event: <type>）**:
+  - `step.appended`
+  - `quality.checked`
+  - `export.ready`
+  - `error`
+- **data（JSON）结构**:
+```json
+{
+  "type": "string",
+  "data": {},
+  "timestamp": "RFC3339 time"
+}
+```
+
+### 广播测试事件
+- **URL**: `POST /api/v1/sse/test?session_id=1&type=step`
+- **描述**: 向指定 session 广播测试事件（用于联调/验证）
+- **认证**: 是
+- **说明**:
+  - `type` 支持：`step` / `quality` / `export`
+- **响应（data）**:
+```json
+{
+  "message": "Event broadcasted",
+  "session_id": "string",
+  "event_type": "string"
+}
+```
+
+---
+
 ## 数据模型
 
 ### User 用户

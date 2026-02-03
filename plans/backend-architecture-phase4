@@ -5,7 +5,9 @@ docs/api.md 已包含：
 JWT：/api/v1/auth/login|register|refresh|logout
 Projects：列表/创建/更新/删除/导出
 Plugins：列表/启用禁用/ping/能力/call/invoke-async + Jobs（轮询）
-并明确：异步调用可通过 SSE 订阅 session_id 获取进度（但具体 SSE endpoint 在现有片段未出现，需要在文档更后段或后端路由里确认）。
+并明确：异步调用可通过 SSE 订阅 session_id 获取进度（api.md:L501-L526）。
+
+补充：本仓库后端已实现 Sessions / Steps / SSE 路由（以 internal/router/router.go 为准），但 docs/api.md 尚未整理成对应章节。
 0.2 参考项目里可复用的成熟实现（对标竞品 MuMuAINovel）
 在 参考项目/MuMuAINovel-main/frontend 里已有完整的 SSE 工具实现：
 
@@ -17,6 +19,24 @@ SSEPostClient（fetch POST + ReadableStream 手动解析 event: + data:）
 0.3 模板前端现状（需要注意的差异）
 你提供的“模板前端参考”（参考项目/1.28-novel-agent-os (5)）是 Vite + React（无路由库、无数据缓存库），并且 Auth/Project 都是 localStorage mock 的 Context，不是对接你们 Go 后端 API 的版本。
 因此：M4 的“工作流 + SSE + 配套模块联调”在真正落地时，必须以你们将要采用的“模板前端主工程”当前栈为准（路由/布局/组件库/请求层）。本计划按你在需求里提的“采用模板前端作为主工程”来写，但会把接口与模块拆分讲清楚，便于直接落到工程结构里。
+
+0.4 模板前端主工程路径（当前仓库现状）
+目前在主仓库根目录（h:\miaomiaoji-os）及非“参考项目”目录下，未发现前端工程标识（例如 package.json / vite.config.* / next.config.* / index.html 等）。
+当前可识别的前端工程均位于：h:\miaomiaoji-os\参考项目\ 下（例如 参考项目/1.28-novel-agent-os (5)）。
+结论：在开始第 4 阶段前端建设前，需要先明确“模板前端主工程”要落地到主仓库的哪个目录（例如 /web、/frontend、/ui），并完成拷贝/迁移与基础构建可运行。
+
+0.5 Phase4 开工前置（必须先完成，再开始 M4 UI/联调）
+模板前端是“起步骨架”，不能直接照搬上线；Phase4 的前置不是“原样迁移”，而是“迁入并完成基础改造后，才进入 M4 UI/联调”。
+
+1) 将“模板前端”迁入主仓库的指定目录，并作为“模板前端主工程”维护（不再仅停留在参考项目目录）。
+2) 完成基础改造（先做底座，不等到后面边做功能边返工）：
+   - 请求层：把 services/contexts 的 mock 逻辑替换为真实 API Client（统一处理 JWT、错误码、401 刷新/跳转登录）。
+   - 鉴权：AuthContext 从 localStorage 账户系统切换为后端 /auth + /users/profile 契约；项目上下文同理切换为 /projects。
+   - 路由与布局：补齐路由方案与页面壳（至少能到登录页/项目列表页/工作流页）。
+   - 配置：在前端侧提供可配置的 API_BASE_URL（以及需要时的 SSE_BASE_URL），确保非硬编码，便于后续联调与部署切换。
+3) 本地可运行：完成依赖安装、开发服务器启动，能在浏览器打开并进入基础页面（至少到登录页或项目列表页）。
+4) 最小联调验证：完成一次真实后端联调闭环（登录 → 获取当前用户信息 /users/profile 或拉取项目列表 /projects）。
+5) 同步补齐后端契约文档：在 docs/api.md 中补齐 Sessions/Steps/SSE 章节，以 internal/router/router.go 与 handler 的请求/响应为准。
 
 1. M4 交付范围（In Scope）与不做项（Out Scope）
 1.1 M4 必交付（功能闭环）
@@ -55,7 +75,7 @@ Export：项目导出入口（下载 JSON 或跳转导出页）
 /files：文件与上传
 /corpus：语料（列表 + 导入入口）
 /settlements：积分流水
-/projects/:id/export 或 /projects/:id 内的导出面板
+/projects/:project_id/export 或 /projects/:project_id 内的导出面板
 2.2 页面布局（推荐交互）
 左侧主导航固定（项目/写作/资料卡/模板/工作流/插件/文件与语料/结算/设置）
 工作流详情页采用“三栏”或“两栏”：
@@ -68,12 +88,16 @@ Export：项目导出入口（下载 JSON 或跳转导出页）
 
 优点：浏览器原生、自动重连、简单
 难点：自定义 header 不方便（带 JWT 常见问题）
-解决策略（按你们后端实现二选一）：
-SSE endpoint 支持 Cookie/withCredentials（更偏同域）
-SSE endpoint 支持 token query 参数（谨慎：避免日志与 referrer 泄露，最好短期 token）
-使用 fetch-stream（POST/GET）手动解析 SSE（参考 MuMuAINovel 的 SSEPostClient）
-建议：保留两种实现并统一成一个“Stream Adapter”
-
+解决策略（结合本后端实现）：
+1) 本仓库 SSE 订阅端点为：GET /api/v1/sse/stream（internal/router/router.go:247-252）
+   - 认证：JWTAuth 中间件（同域/跨域取决于部署与 CORS）
+   - 订阅参数：session_id（query，必填，internal/handler/sse_handler.go:24-29）
+2) EventSource 无法自定义 Authorization header：
+   - 若前端 Token 仅以 Bearer Header 方式注入，则需要后端同时支持 Cookie 鉴权，或前端采用 fetch-stream（ReadableStream）方式带 header。
+   - 当前后端 sse_handler.go 中 Stream 路由已挂 middleware.JWTAuth()，意味着服务端期望正常走 JWT 校验；前端需在工程落地时明确鉴权承载方式。
+3) 建议前端实现“Stream Adapter”，同时支持：
+   - EventSourceAdapter：适用于 cookie/同域等可用场景
+   - FetchStreamAdapter：适用于必须携带 Authorization header 的场景
 EventSourceAdapter：处理 GET SSE
 FetchStreamAdapter：处理 POST/需要 header 的 SSE
 上层对外暴露统一事件：onProgress/onChunk/onResult/onError/onDone
@@ -108,12 +132,37 @@ Session Detail：
 Steps 树（包含状态：queued/running/success/error）
 选中 Step 时输出区定位
 “运行中”与“已完成”两种视图（运行中自动更新）
-接口依赖（需要你们确认/补齐到 api.md 或后端实现）
+接口依赖（以本仓库后端路由为准；建议后续同步补齐到 docs/api.md）
 
-Sessions：list/get/create/run/retry
-Steps：list/get（通常嵌在 session detail 里）
-SSE：subscribe endpoint（按 session_id）
-若现阶段 api.md 未包含 sessions/steps/sse 的完整路径：M4 开始前必须完成“契约补全”，否则 UI 会被迫做大量占位。
+Sessions（internal/router/router.go:230-245）
+- POST   /api/v1/sessions                 CreateSession
+- GET    /api/v1/sessions                 ListSessions
+- GET    /api/v1/sessions/:session_id     GetSession
+- PUT    /api/v1/sessions/:session_id     UpdateSession
+- DELETE /api/v1/sessions/:session_id     DeleteSession
+
+Session Steps（internal/router/router.go:239-244）
+- POST   /api/v1/sessions/:session_id/steps  CreateStep
+- GET    /api/v1/sessions/:session_id/steps  ListSteps
+- GET    /api/v1/sessions/steps/:id          GetStep
+- PUT    /api/v1/sessions/steps/:id          UpdateStep
+- DELETE /api/v1/sessions/steps/:id          DeleteStep
+
+SSE（internal/router/router.go:247-252）
+- GET  /api/v1/sse/stream   Stream（query: session_id 必填）
+- POST /api/v1/sse/test     BroadcastTestEvent（用于测试广播；同样需要 query: session_id）
+
+备注：session_handler.go 中存在 ListSessionsByProject，但路由未注册（当前 router.go 未暴露 /projects/:project_id/sessions 之类的 endpoint）。如果前端需要“项目维度会话列表”，建议后端补路由或前端先用 ListSessions 后自行按 project_id 过滤（性能取决于数据量）。
+
+字段映射（用于前端模型与表单）
+- CreateSessionRequest（internal/handler/session_handler.go:23-27）: title(required), mode(required), project_id(required)
+- UpdateSessionRequest（internal/handler/session_handler.go:29-32）: title?, mode?
+- CreateStepRequest（internal/handler/session_handler.go:34-39）: title(required), content?, format_type?, order_index?
+- UpdateStepRequest（internal/handler/session_handler.go:41-46）: title?, content?, format_type?, order_index?
+
+数据模型（internal/model/session.go）
+- Session: id, title, mode, project_id, user_id, steps[]
+- SessionStep: id, title, content, format_type, order_index, metadata(JSON), session_id
 
 4.2 SSE 输出面板（Streaming Output Panel）
 交付物
@@ -141,14 +190,36 @@ Files
 预览：图片/文本可做基础预览，其它类型显示占位
 Corpus
 
-列表（若接口已准备）
+列表（本仓库后端已实现 corpus 路由：internal/router/router.go:266-276）
 导入入口（占位到可用：上传文件 → 触发后端导入任务 → 绑定 session/job 展示进度）
+
+Files（本仓库后端已实现 files 路由：internal/router/router.go:278-288）
+- POST /api/v1/files
+- GET  /api/v1/files
+- GET  /api/v1/files/project/:project_id
+- GET  /api/v1/files/:id
+- GET  /api/v1/files/:id/download
+- PUT  /api/v1/files/:id
+- DELETE /api/v1/files/:id
+
+Formatting / Quality（与“工作流结果处理”联动的后端能力）
+- POST /api/v1/formatting/format
+- GET  /api/v1/formatting/styles
+- POST /api/v1/quality/check
+- GET  /api/v1/quality/thresholds
 4.5 Settlements（联调）
 当前积分展示（来自 /users/points）
-积分流水列表（需要 settlements 接口；若未有，M4 允许仅展示占位与 points）
+积分流水列表（本仓库后端已实现 settlements 路由：internal/router/router.go:254-263）
+- POST /api/v1/settlements
+- GET  /api/v1/settlements
+- GET  /api/v1/settlements/filter
+- GET  /api/v1/settlements/total-points
+- GET  /api/v1/settlements/:id
+- PUT  /api/v1/settlements/:id
+- DELETE /api/v1/settlements/:id
 4.6 Export（联调）
 在项目页提供“导出”入口
-GET /api/v1/projects/:id/export：下载 JSON（或展示 JSON 再下载）
+GET /api/v1/projects/:project_id/export：下载 JSON（或展示 JSON 再下载）
 导出完成后提示：文件名、大小、时间
 5. 环境配置与工程规范（M4 必须落地）
 5.1 配置项（不硬编码）
@@ -180,7 +251,9 @@ SSE 中断：有断线提示、可手动重连、不会清空已有输出
 7. 风险与对策（M4 特有）
 SSE 鉴权与跨域
 风险：EventSource 不支持自定义 header，跨域 CORS/认证容易踩坑
-对策：优先确认后端 SSE 鉴权方式；必要时使用 fetch-stream（参考 MuMuAINovel 的 SSEPostClient）
+对策：本仓库 SSE 路由已挂 JWTAuth 中间件，前端需要明确 SSE 鉴权承载方式：
+- 若走 Cookie：确认同域/跨域 withCredentials 与 CORS
+- 若走 Bearer Header：建议使用 fetch-stream 解析 SSE（可参考对标项目 MuMuAINovel 的 SSEPostClient 思路）
 大文本/长输出导致 UI 卡顿
 风险：每次 setState 拼接全文导致频繁重排
 对策：chunk 队列 + 批量 flush；按 step 分组折叠；必要时输出区虚拟化/分页
@@ -205,3 +278,17 @@ D5：全链路回归与体验修补
 空/错/加载态补齐
 性能与交互打磨（自动滚动、重连、重试）
 最终验收脚本（可手动走通一遍）
+
+补充更新（已核对后端代码，供前端第 4 阶段对照）
+1) Sessions / Steps / SSE 路由：internal/router/router.go
+2) SSE 订阅参数：session_id（query 必填），internal/handler/sse_handler.go:24-29
+3) SSE 事件格式：event: <type>\ndata: <json>\n\n，pkg/sse/sse.go:163-171
+4) SSE 事件类型（pkg/sse/sse.go:14-19）：
+   - step.appended
+   - quality.checked
+   - export.ready
+   - error
+
+联调注意
+- pkg/sse.NewErrorEvent 当前会直接调用 err.Error()，若 err 为 nil 会触发 panic；sse_handler.go:99 默认分支 NewErrorEvent("Unknown event type", nil) 存在潜在问题。
+- 建议联调时优先使用 type=step/quality/export，或先修复后端 NewErrorEvent 的 nil 安全性。
