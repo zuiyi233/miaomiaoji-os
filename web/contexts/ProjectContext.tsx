@@ -122,14 +122,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const setViewMode = useCallback(
     (mode: ViewMode) => {
-      if (mode === ViewMode.SETTINGS && viewMode !== ViewMode.SETTINGS) {
-        setPreviousViewMode(activeProjectId ? viewMode : 'DASHBOARD');
-      } else if (mode !== ViewMode.SETTINGS) {
-        setPreviousViewMode(null);
-      }
-      setViewModeState(mode);
+      setViewModeState((prev) => {
+        if (prev === mode) return prev;
+        if (mode === ViewMode.SETTINGS && prev !== ViewMode.SETTINGS) {
+          setPreviousViewMode(activeProjectId ? prev : 'DASHBOARD');
+        } else if (mode !== ViewMode.SETTINGS) {
+          setPreviousViewMode(null);
+        }
+        return mode;
+      });
     },
-    [activeProjectId, viewMode]
+    [activeProjectId]
   );
 
   const navigateBack = () => {
@@ -139,7 +142,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       setViewModeState(previousViewMode as ViewMode);
     } else {
       if (activeProjectId) setViewModeState(ViewMode.WRITER);
-      else exitProject();
+      else {
+        setViewModeState(ViewMode.WRITER);
+      }
     }
     setPreviousViewMode(null);
   };
@@ -170,7 +175,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const exitProject = () => {
     setActiveProjectId(null);
     setViewModeState(ViewMode.WRITER);
-    setPreviousViewMode(null);
+    setPreviousViewMode('DASHBOARD');
   };
 
   const selectSession = useCallback((sessionId: string | null) => {

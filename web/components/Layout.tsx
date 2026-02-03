@@ -41,36 +41,29 @@ const LayoutContent: React.FC = () => {
     }
   }, [theme]);
 
+  const resolveViewMode = (path: string): ViewMode | null => {
+    if (path.startsWith('/workflows/')) return ViewMode.WORKFLOW_DETAIL;
+    if (path === '/workflows') return ViewMode.WORKFLOWS;
+    if (path === '/files') return ViewMode.FILES;
+    if (path === '/corpus') return ViewMode.CORPUS;
+    if (path === '/settlements') return ViewMode.SETTLEMENTS;
+    if (path === '/plugins') return ViewMode.PLUGINS;
+    if (path === '/world') return ViewMode.WORLD;
+    if (path === '/planboard') return ViewMode.PLANBOARD;
+    if (path === '/writer') return ViewMode.WRITER;
+    if (path === '/settings') return ViewMode.SETTINGS;
+    if (path === '/') return ViewMode.WRITER;
+    return null;
+  };
+
   useEffect(() => {
     const path = location.pathname;
-    let nextView: ViewMode | null = null;
-
+    const nextView = resolveViewMode(path);
     if (path.startsWith('/workflows/')) {
       const sessionId = path.replace('/workflows/', '').trim();
-      if (sessionId) {
-        if (sessionId !== activeSessionId) {
-          selectSession(sessionId);
-        }
-        nextView = ViewMode.WORKFLOW_DETAIL;
+      if (sessionId && sessionId !== activeSessionId) {
+        selectSession(sessionId);
       }
-    } else if (path === '/workflows') {
-      nextView = ViewMode.WORKFLOWS;
-    } else if (path === '/files') {
-      nextView = ViewMode.FILES;
-    } else if (path === '/corpus') {
-      nextView = ViewMode.CORPUS;
-    } else if (path === '/settlements') {
-      nextView = ViewMode.SETTLEMENTS;
-    } else if (path === '/plugins') {
-      nextView = ViewMode.PLUGINS;
-    } else if (path === '/world') {
-      nextView = ViewMode.WORLD;
-    } else if (path === '/planboard') {
-      nextView = ViewMode.PLANBOARD;
-    } else if (path === '/writer') {
-      nextView = ViewMode.WRITER;
-    } else if (path === '/settings') {
-      nextView = ViewMode.SETTINGS;
     }
 
     if (nextView && nextView !== viewMode) {
@@ -79,25 +72,35 @@ const LayoutContent: React.FC = () => {
   }, [location.pathname, activeSessionId, selectSession, setViewMode, viewMode]);
 
   useEffect(() => {
-    const pathMap: Record<ViewMode, string> = {
-      [ViewMode.WRITER]: activeProjectId ? '/writer' : '/',
-      [ViewMode.PLANBOARD]: '/planboard',
-      [ViewMode.WORLD]: '/world',
-      [ViewMode.PLUGINS]: '/plugins',
-      [ViewMode.FILES]: '/files',
-      [ViewMode.CORPUS]: '/corpus',
-      [ViewMode.SETTLEMENTS]: '/settlements',
-      [ViewMode.WORKFLOWS]: '/workflows',
-      [ViewMode.WORKFLOW_DETAIL]: activeSessionId ? `/workflows/${activeSessionId}` : '/workflows',
-      [ViewMode.ADMIN]: '/settings',
-      [ViewMode.SETTINGS]: '/settings',
-    };
+    const target = (() => {
+      if (viewMode === ViewMode.WORKFLOW_DETAIL) {
+        return activeSessionId ? `/workflows/${activeSessionId}` : '/workflows';
+      }
+      if (viewMode === ViewMode.WRITER) {
+        return activeProjectId ? '/writer' : '/';
+      }
+      const map: Record<ViewMode, string> = {
+        [ViewMode.PLANBOARD]: '/planboard',
+        [ViewMode.WORLD]: '/world',
+        [ViewMode.PLUGINS]: '/plugins',
+        [ViewMode.FILES]: '/files',
+        [ViewMode.CORPUS]: '/corpus',
+        [ViewMode.SETTLEMENTS]: '/settlements',
+        [ViewMode.WORKFLOWS]: '/workflows',
+        [ViewMode.ADMIN]: '/settings',
+        [ViewMode.SETTINGS]: '/settings',
+        [ViewMode.WRITER]: '/writer',
+        [ViewMode.WORKFLOW_DETAIL]: '/workflows',
+      };
+      return map[viewMode];
+    })();
 
-    const target = pathMap[viewMode];
-    if (target && location.pathname !== target) {
-      navigate(target, { replace: true });
-    }
-  }, [viewMode, activeSessionId, navigate, location.pathname]);
+    if (!target) return;
+    if (location.pathname === target) return;
+    const currentView = resolveViewMode(location.pathname);
+    if (currentView === viewMode) return;
+    navigate(target, { replace: true });
+  }, [viewMode, activeProjectId, activeSessionId, navigate, location.pathname]);
 
   if (isLoading) {
     return (

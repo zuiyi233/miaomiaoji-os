@@ -307,7 +307,7 @@ const InspirationCard: React.FC = () => {
     if (!inspiration || !lastFetch || (Date.now() - parseInt(lastFetch) > oneHour)) {
       fetchNewInspiration();
     }
-  }, [fetchNewInspiration, inspiration]);
+  }, []);
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-paper-200 dark:border-zinc-800 p-6 rounded-[2.5rem] shadow-sm flex flex-col h-full relative group transition-all hover:shadow-lg">
