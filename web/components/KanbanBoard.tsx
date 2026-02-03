@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useProject } from '../contexts/ProjectContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { GripVertical, MoreHorizontal, Plus, BookOpen, Sparkles, X, Loader2, Calendar, LayoutGrid, Clock, ChevronRight, Target, Flag, Layers, Book, Edit3, Trash2, Anchor, Key, Route, Bookmark, Wand2, FileText, Save, Tag, Hash, FileType } from 'lucide-react';
 import { ViewMode, Document, Volume } from '../types';
 import { generateJSON, generateVolumeOutline } from '../services/aiService';
@@ -19,6 +20,7 @@ const PLOT_STRUCTURES = [
 export const KanbanBoard: React.FC = () => {
   const { project, setActiveDocumentId, setViewMode, addDocument, updateDocument, updateNovelDetails, addVolume, updateVolume, deleteVolume, deleteDocument } = useProject();
   const { hasAIAccess } = useAuth();
+  const { confirm } = useConfirm();
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isOutlineModalOpen, setIsOutlineModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -297,7 +299,7 @@ export const KanbanBoard: React.FC = () => {
                 <Wand2 className="w-3 h-3" /> AI 自动规划卷纲
               </button>
             )}
-            <button onClick={() => { if(confirm(`确定删除卷 "${currentVolume.title}" 吗？`)) deleteVolume(currentVolume.id); }} className="p-2 text-ink-300 dark:text-zinc-600 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+            <button onClick={async () => { const ok = await confirm({ title: `确定删除卷“${currentVolume.title}”吗？`, description: '删除后将无法恢复。', confirmText: '删除', cancelText: '取消', tone: 'danger' }); if (ok) deleteVolume(currentVolume.id); }} className="p-2 text-ink-300 dark:text-zinc-600 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>
         

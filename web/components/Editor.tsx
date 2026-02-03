@@ -28,13 +28,11 @@ export const Editor: React.FC = () => {
   const [wordCountRequest, setWordCountRequest] = useState<'normal' | 'expand' | 'finish'>('normal');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  if (!project) return null;
+  const activeDoc = project?.documents.find(d => d.id === activeDocumentId);
+  const activeVolume = project?.volumes.find(v => v.id === activeDoc?.volumeId);
+  const enabledPlugins = (project?.plugins || []).filter(p => p.isEnabled) || [];
 
-  const activeDoc = project.documents.find(d => d.id === activeDocumentId);
-  const activeVolume = project.volumes.find(v => v.id === activeDoc?.volumeId);
-  const enabledPlugins = (project.plugins || []).filter(p => p.isEnabled);
-
-  const sortedDocs = project.documents
+  const sortedDocs = (project?.documents || [])
     .filter(d => d.volumeId === activeDoc?.volumeId)
     .sort((a, b) => a.order - b.order);
   const currentIndex = sortedDocs.findIndex(d => d.id === activeDoc?.id);
@@ -185,6 +183,7 @@ export const Editor: React.FC = () => {
     }
   };
 
+  if (!project) return null;
   if (!activeDoc) return <div className="flex-1 flex items-center justify-center text-ink-400 dark:text-zinc-500 bg-paper-50 dark:bg-zinc-950 bg-dot-pattern">点击左侧章节开始创作</div>;
 
   const currentWordCount = content.length;

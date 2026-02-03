@@ -6,6 +6,7 @@ import { ViewMode } from '../types';
 import { Book, Layout, Globe, FileText, Settings, Plus, Trash2, HelpCircle, Link, Check, Sparkles, ChevronDown, ChevronRight, Folder, Home, Moon, Sun, Puzzle, LogOut, Shield, UserCircle, Activity, Archive, Database, Coins } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { UserGuide } from './UserGuide';
+import { useConfirm } from '../contexts/ConfirmContext';
 
 export const Sidebar: React.FC = () => {
   const { project, activeDocumentId, setActiveDocumentId, viewMode, setViewMode, addDocument, deleteDocument, addVolume, deleteVolume, exitProject, theme, setTheme } = useProject();
@@ -15,6 +16,7 @@ export const Sidebar: React.FC = () => {
     navigate(path, { replace: true });
   };
   const { user, logout } = useAuth();
+  const { confirm } = useConfirm();
   const [showGuide, setShowGuide] = useState(false);
   const [expandedVolumes, setExpandedVolumes] = useState<Record<string, boolean>>(() => {
     if (!project) return {};
@@ -132,20 +134,35 @@ export const Sidebar: React.FC = () => {
                         .sort((a,b) => a.order - b.order)
                         .map((doc) => (
                           <div key={doc.id} className="relative group">
-                            <button
-                              onClick={() => {
-                                setActiveDocumentId(doc.id);
-                                setViewMode(ViewMode.WRITER);
-                              }}
-                              className={docItemClass(activeDocumentId === doc.id)}
-                            >
-                              <span className="truncate pr-4">{doc.title}</span>
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={(e) => { e.stopPropagation(); if (confirm('确定删除此章节吗？')) deleteDocument(doc.id); }} className="p-1 text-ink-300 dark:text-zinc-600 hover:text-red-500 rounded">
+                            <div className="relative group">
+                              <button
+                                onClick={() => {
+                                  setActiveDocumentId(doc.id);
+                                  setViewMode(ViewMode.WRITER);
+                                }}
+                                className={docItemClass(activeDocumentId === doc.id)}
+                              >
+                                <span className="truncate pr-4">{doc.title}</span>
+                              </button>
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const ok = await confirm({
+                                      title: '确定删除此章节吗？',
+                                      description: '删除后将无法恢复。',
+                                      confirmText: '删除',
+                                      cancelText: '取消',
+                                      tone: 'danger',
+                                    });
+                                    if (ok) deleteDocument(doc.id);
+                                  }}
+                                  className="p-1 text-ink-300 dark:text-zinc-600 hover:text-red-500 rounded"
+                                >
                                   <Trash2 className="w-3 h-3" />
                                 </button>
                               </div>
-                            </button>
+                            </div>
                           </div>
                         ))}
                     </div>

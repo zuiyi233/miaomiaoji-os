@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useProject } from '../contexts/ProjectContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { Plugin, PluginCapability } from '../types';
 import {
   fetchPluginsApi,
@@ -113,6 +114,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ plugin, onSave, onClose }) =>
 
 export const PluginManager: React.FC = () => {
   const { project, setProject } = useProject();
+  const { confirm } = useConfirm();
   const [newEndpoint, setNewEndpoint] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [activeTab, setActiveTab] = useState<'manage' | 'docs'>('manage');
@@ -206,7 +208,14 @@ export const PluginManager: React.FC = () => {
   const removePlugin = async (id: string) => {
     const plugin = plugins.find(p => p.id === id);
     if (!plugin) return;
-    if (confirm('确定删除此插件吗？')) {
+    const ok = await confirm({
+      title: '确定删除此插件吗？',
+      description: '删除后将无法恢复。',
+      confirmText: '删除',
+      cancelText: '取消',
+      tone: 'danger',
+    });
+    if (ok) {
       try {
         await deletePluginApi(id);
         setProject({

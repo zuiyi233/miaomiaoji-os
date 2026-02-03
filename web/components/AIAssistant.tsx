@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useProject } from '../contexts/ProjectContext';
 import { chatWithMuseStream } from '../services/geminiService';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { 
   X, Send, Sparkles, User, Bot, Loader2, Info, ChevronDown, Plus, Trash2, 
   History, Wand2, MessageSquare, BookOpen, Layers, Check, Copy, ExternalLink,
@@ -98,6 +99,7 @@ const PROMO_TOOLS: AIPromptTemplate[] = [
 
 export const AIAssistant: React.FC = () => {
   const { isAISidebarOpen, toggleAISidebar, project, activeDocumentId, addTemplate, deleteTemplate } = useProject();
+  const { confirm } = useConfirm();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -648,7 +650,17 @@ export const AIAssistant: React.FC = () => {
                                         <p className="text-[10px] text-gray-500 dark:text-zinc-400 leading-relaxed line-clamp-2">{skill.description}</p>
                                     </button>
                                     <button 
-                                        onClick={(e) => { e.stopPropagation(); if(confirm('删除此自定义技能？')) deleteTemplate(skill.id); }}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          const ok = await confirm({
+                                            title: '删除此自定义技能？',
+                                            description: '删除后将无法恢复。',
+                                            confirmText: '删除',
+                                            cancelText: '取消',
+                                            tone: 'danger',
+                                          });
+                                          if (ok) deleteTemplate(skill.id);
+                                        }}
                                         className="absolute top-4 right-4 p-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />

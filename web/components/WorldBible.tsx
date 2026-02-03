@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useProject } from '../contexts/ProjectContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { 
   Users, BookOpen, Plus, Tag, Trash2, Link as LinkIcon, X, Sparkles, 
   Activity, Check, Search, Loader2, Shield, Sword, Scroll, Zap, Globe, ChevronRight, Wand2,
@@ -17,6 +18,7 @@ type SortOption = 'title' | 'id' | 'importance';
 export const WorldBible: React.FC = () => {
   const { project, addEntity, updateEntity, deleteEntity, updateNovelDetails, setViewMode } = useProject();
   const { hasAIAccess } = useAuth();
+  const { confirm } = useConfirm();
   
   const [activeCategory, setActiveCategory] = useState<EntityType | 'all'>('all');
   const [showGraph, setShowGraph] = useState(false);
@@ -123,7 +125,14 @@ export const WorldBible: React.FC = () => {
 
   const handleRefineCore = async () => {
     if (!hasAIAccess) return;
-    if (confirm("AI 将根据现有信息重新生成/完善核心冲突等要素。确定执行吗？")) {
+    const ok = await confirm({
+      title: '确定执行 AI 重新生成吗？',
+      description: '将根据现有信息重新生成/完善核心冲突等要素。',
+      confirmText: '确认执行',
+      cancelText: '取消',
+      tone: 'default',
+    });
+    if (ok) {
       setIsRefiningCore(true);
       try {
         const refined = await refineNovelCore(project);

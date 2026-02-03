@@ -58,6 +58,13 @@ const LayoutContent: React.FC = () => {
 
   useEffect(() => {
     const path = location.pathname;
+    if (!activeProjectId && path !== '/' && path !== '/settings') {
+      navigate('/', { replace: true });
+      return;
+    }
+    if (path === '/' && activeProjectId) {
+      return;
+    }
     const nextView = resolveViewMode(path);
     if (path.startsWith('/workflows/')) {
       const sessionId = path.replace('/workflows/', '').trim();
@@ -66,10 +73,10 @@ const LayoutContent: React.FC = () => {
       }
     }
 
-    if (nextView && nextView !== viewMode) {
+    if (nextView) {
       setViewMode(nextView);
     }
-  }, [location.pathname, activeSessionId, selectSession, setViewMode, viewMode]);
+  }, [location.pathname, activeSessionId, selectSession, setViewMode, activeProjectId, navigate]);
 
   useEffect(() => {
     const target = (() => {
@@ -98,7 +105,7 @@ const LayoutContent: React.FC = () => {
     if (!target) return;
     if (location.pathname === target) return;
     const currentView = resolveViewMode(location.pathname);
-    if (currentView === viewMode) return;
+    if (currentView === viewMode && location.pathname !== '/') return;
     navigate(target, { replace: true });
   }, [viewMode, activeProjectId, activeSessionId, navigate, location.pathname]);
 
@@ -186,7 +193,10 @@ const LayoutContent: React.FC = () => {
         <div className="flex-1 flex overflow-hidden relative">
           <div className="flex-1 min-w-0 flex flex-col relative overflow-hidden">
             <Routes>
-              <Route path="/" element={<ProjectDashboard onCreateNew={() => setIsCreating(true)} />} />
+              <Route
+                path="/"
+                element={activeProjectId ? <Editor /> : <ProjectDashboard onCreateNew={() => setIsCreating(true)} />}
+              />
               <Route path="/writer" element={<Editor />} />
               <Route path="/planboard" element={<KanbanBoard />} />
               <Route path="/world" element={<WorldBible />} />

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useProject } from '../contexts/ProjectContext';
 import { useAuth } from '../contexts/AuthContext';
+import { ConfirmButton, useConfirm } from '../contexts/ConfirmContext';
 import { fetchInternetInspiration, DEFAULT_AI_SETTINGS } from '../services/aiService';
 import { 
   Book, Plus, Trash2, ArrowRight, Sparkles, TrendingUp, 
@@ -101,6 +102,7 @@ const useDailyProgress = (currentTotalWords: number) => {
 
 const PointsCard: React.FC = () => {
   const { user, performCheckIn, exchangePointsForCode, systemConfig, redemptionCodes } = useAuth();
+  const { confirm } = useConfirm();
   const [exchangedCode, setExchangedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showShop, setShowShop] = useState(false);
@@ -133,7 +135,14 @@ const PointsCard: React.FC = () => {
           alert("积分不足");
           return;
       }
-      if (!confirm(`确定消耗 ${cost} 积分进行兑换吗？`)) return;
+       const ok = await confirm({
+         title: `确定消耗 ${cost} 积分进行兑换吗？`,
+         description: '兑换后将立即扣除积分。',
+         confirmText: '确认兑换',
+         cancelText: '取消',
+         tone: 'default',
+       });
+       if (!ok) return;
       
       setLoading(true);
       
@@ -546,6 +555,7 @@ const RealHeatmap: React.FC<{ projects: Project[] }> = ({ projects }) => {
 export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onCreateNew }) => {
   const { projects, selectProject, deleteProject, createProject, setActiveDocumentId, setViewMode, activeProjectId } = useProject();
   const { user, hasAIAccess } = useAuth();
+  const { confirm } = useConfirm();
   const { timeStr, dateStr, period } = useChineseTime();
   const [showManualCreate, setShowManualCreate] = useState(false);
   const [quickNote, setQuickNote] = useState(() => localStorage.getItem('nao_quick_note') || '');
@@ -648,13 +658,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onCreateNew 
            </div>
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
               <button onClick={() => setShowManualCreate(true)} className="group flex flex-col items-center justify-center p-8 border-2 border-dashed border-paper-200 dark:border-zinc-800 rounded-[2.5rem] hover:border-brand-500 hover:bg-brand-50/10 min-h-[280px] transition-all"><div className="p-5 bg-paper-50 dark:bg-zinc-900 rounded-full text-ink-300 group-hover:bg-brand-500 group-hover:text-white transition-all mb-4 border border-paper-100 dark:border-zinc-800 shadow-inner"><Plus className="w-8 h-8" /></div><span className="text-sm font-black text-ink-400 uppercase tracking-widest">新建空白项目</span></button>
-              {projects.map(project => (
-                <div key={project.id} onClick={() => selectProject(project.id)} className="group relative bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-paper-200 dark:border-zinc-800 shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col justify-between min-h-[280px] overflow-hidden cursor-pointer">
-                   <div className="absolute -right-10 -top-10 w-40 h-40 bg-gradient-to-br from-brand-50 to-transparent dark:from-brand-900/10 rounded-full blur-3xl group-hover:scale-150 transition-transform pointer-events-none" />
-                   <div className="relative z-10"><div className="flex justify-between items-start mb-6"><div className="p-3 bg-brand-50 dark:bg-zinc-800 rounded-2xl text-brand-600 dark:text-zinc-400 group-hover:bg-brand-600 group-hover:text-white transition-all shadow-sm"><Book className="w-6 h-6" /></div><button onClick={(e) => { e.stopPropagation(); if(confirm('确定永久删除此项目吗？')) deleteProject(project.id); }} className="p-2 text-ink-200 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button></div><h3 className="text-2xl font-black text-ink-900 dark:text-zinc-100 font-serif line-clamp-2 mb-2 group-hover:text-brand-700 transition-colors">{project.title}</h3><p className="text-xs text-ink-400 dark:text-zinc-500 line-clamp-3 leading-relaxed font-medium">{project.coreConflict || "未定义核心冲突"}</p></div>
-                   <div className="relative z-10 pt-6 mt-4 border-t border-paper-100 dark:border-zinc-800 flex items-center justify-between"><div className="text-[10px] font-black uppercase text-ink-400 dark:text-zinc-600 tracking-widest">{project.documents.length} 章</div><div className="w-8 h-8 rounded-full bg-paper-50 dark:bg-zinc-800 flex items-center justify-center text-ink-400 dark:text-zinc-500 group-hover:bg-brand-600 group-hover:text-white transition-all"><ChevronRight className="w-4 h-4" /></div></div>
-                </div>
-              ))}
+               {projects.map(project => (
+                 <div key={project.id} onClick={() => selectProject(project.id)} className="group relative bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-paper-200 dark:border-zinc-800 shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col justify-between min-h-[280px] overflow-hidden cursor-pointer">
+                    <div className="absolute -right-10 -top-10 w-40 h-40 bg-gradient-to-br from-brand-50 to-transparent dark:from-brand-900/10 rounded-full blur-3xl group-hover:scale-150 transition-transform pointer-events-none" />
+                    <div className="relative z-10"><div className="flex justify-between items-start mb-6"><div className="p-3 bg-brand-50 dark:bg-zinc-800 rounded-2xl text-brand-600 dark:text-zinc-400 group-hover:bg-brand-600 group-hover:text-white transition-all shadow-sm"><Book className="w-6 h-6" /></div><ConfirmButton onClick={(e) => e.stopPropagation()} onConfirm={() => deleteProject(project.id)} title="确定永久删除此项目吗？" description="删除后将无法恢复。" confirmText="删除" cancelText="取消" tone="danger" className="p-2 text-ink-200 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></ConfirmButton></div><h3 className="text-2xl font-black text-ink-900 dark:text-zinc-100 font-serif line-clamp-2 mb-2 group-hover:text-brand-700 transition-colors">{project.title}</h3><p className="text-xs text-ink-400 dark:text-zinc-500 line-clamp-3 leading-relaxed font-medium">{project.coreConflict || "未定义核心冲突"}</p></div>
+                    <div className="relative z-10 pt-6 mt-4 border-t border-paper-100 dark:border-zinc-800 flex items-center justify-between"><div className="text-[10px] font-black uppercase text-ink-400 dark:text-zinc-600 tracking-widest">{project.documents.length} 章</div><div className="w-8 h-8 rounded-full bg-paper-50 dark:bg-zinc-800 flex items-center justify-center text-ink-400 dark:text-zinc-500 group-hover:bg-brand-600 group-hover:text-white transition-all"><ChevronRight className="w-4 h-4" /></div></div>
+                 </div>
+               ))}
            </div>
         </div>
       </div>

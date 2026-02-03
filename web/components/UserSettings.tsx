@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProject } from '../contexts/ProjectContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { 
   UserCircle, Shield, Calendar, Trash2, LogOut, Palette, Cpu, 
   ArrowLeft, Sparkles, Globe, BrainCircuit, RefreshCw, 
@@ -31,6 +32,7 @@ const StatusBadge: React.FC<{ status: CodeStatus, expiresAt: number }> = ({ stat
 export const UserSettings: React.FC = () => {
   const { user, allUsers, logout, redemptionCodes, batchGenerateCodes, batchUpdateCodes, deviceId, hasAIAccess, systemConfig, updateSystemConfig } = useAuth();
   const { project, theme, setTheme, defaultAISettings, updateDefaultAISettings, updateAISettings, availableModels, refreshModels, previousViewMode, navigateBack, projects } = useProject();
+  const { confirm } = useConfirm();
   
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -164,10 +166,17 @@ export const UserSettings: React.FC = () => {
     }
   };
 
-  const handleBatchAction = (action: 'disable' | 'enable' | 'delete' | 'renew') => {
+  const handleBatchAction = async (action: 'disable' | 'enable' | 'delete' | 'renew') => {
     if (selectedCodes.size === 0) return;
     const actionMap = { disable: '禁用', enable: '启用', delete: '删除', renew: '续期30天' };
-    if (!confirm(`确定要批量${actionMap[action]}选中的 ${selectedCodes.size} 个兑换码吗？`)) return;
+    const ok = await confirm({
+      title: `确定要批量${actionMap[action]}选中的 ${selectedCodes.size} 个兑换码吗？`,
+      description: '该操作将应用到所有选中的兑换码。',
+      confirmText: '确认执行',
+      cancelText: '取消',
+      tone: action === 'delete' ? 'danger' : 'default',
+    });
+    if (!ok) return;
     
     let val = undefined;
     if (action === 'renew') val = 30; 
@@ -189,11 +198,18 @@ export const UserSettings: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const handleClearCache = () => {
-    if (confirm("确定清除所有本地缓存（包含模型列表、临时状态）？您的项目数据不会丢失。")) {
-        localStorage.clear();
-        alert("缓存已清除，页面将刷新。");
-        window.location.reload();
+  const handleClearCache = async () => {
+    const ok = await confirm({
+      title: '确定清除所有本地缓存？',
+      description: '包含模型列表与临时状态，但项目数据不会丢失。',
+      confirmText: '清除缓存',
+      cancelText: '取消',
+      tone: 'danger',
+    });
+    if (ok) {
+      localStorage.clear();
+      alert("缓存已清除，页面将刷新。");
+      window.location.reload();
     }
   };
 

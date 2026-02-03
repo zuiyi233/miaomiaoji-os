@@ -2,6 +2,7 @@ import React from 'react';
 import { StoryEntity, Project } from '../types';
 import { Mic2, Trash2, Tag as TagIcon, Layout, Edit3, Link as LinkIcon } from 'lucide-react';
 import { getTypeStyle, getEntityIcon } from './EntityVisuals';
+import { useConfirm } from '../contexts/ConfirmContext';
 
 interface EntityCardViewProps {
   entity: StoryEntity;
@@ -12,6 +13,7 @@ interface EntityCardViewProps {
 }
 
 export const EntityCardView: React.FC<EntityCardViewProps> = ({ entity, project, categories, onEdit, onDelete }) => {
+  const { confirm } = useConfirm();
   return (
     <>
       <div className={`absolute top-6 right-6 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-2 border ${getTypeStyle(entity.type)} shadow-sm z-10 dark:bg-zinc-800`}>
@@ -91,11 +93,16 @@ export const EntityCardView: React.FC<EntityCardViewProps> = ({ entity, project,
               <Edit3 className="w-4 h-4" />
             </button>
             <button 
-                onClick={(e) => { 
+                onClick={async (e) => { 
                     e.stopPropagation(); 
-                    if(confirm(`确定永久删除档案 "${entity.title}" 吗？\n此操作不可撤销，且会清除所有关联引用。`)) {
-                        onDelete(entity.id); 
-                    }
+                    const ok = await confirm({
+                      title: `确定永久删除档案“${entity.title}”吗？`,
+                      description: '此操作不可撤销，且会清除所有关联引用。',
+                      confirmText: '删除',
+                      cancelText: '取消',
+                      tone: 'danger',
+                    });
+                    if (ok) onDelete(entity.id); 
                 }} 
                 className="text-gray-300 dark:text-zinc-600 hover:text-red-400 dark:hover:text-red-500 p-2 transition-colors"
             >
