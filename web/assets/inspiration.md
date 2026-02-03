@@ -1,90 +1,180 @@
 - If I find 10,000 ways something won't work, I haven't failed. I am not discouraged, because every wrong attempt discarded is another step forward. — Thomas Edison｜未知
+- 如果我找到了 10,000 种行不通的方法，我并没有失败。我不会气馁，因为每一次被抛弃的错误尝试，都是向前迈出的一步。 — Thomas Edison｜未知
 - If we all did the things we are capable of doing, we would literally astound ourselves. — Thomas Edison｜未知
+- 如果我们都去做自己有能力做到的事，我们真的会让自己惊叹不已。 — Thomas Edison｜未知
 - To invent, you need a good imagination and a pile of junk. — Thomas Edison｜未知
+- 要发明创造，你需要丰富的想象力和一堆破烂。 — Thomas Edison｜未知
 - Genius is one per cent inspiration, ninety-nine per cent perspiration. — Thomas Edison｜未知
+- 天才是一分灵感，九十九分汗水。 — Thomas Edison｜未知
 - If you're going through hell, keep going. — Winston Churchill｜未知
+- 如果你正在经历地狱，就继续走下去。 — Winston Churchill｜未知
 - It is no use saying, 'We are doing our best.' You have got to succeed in doing what is necessary. — Winston Churchill｜未知
+- 说“我们已经尽力了”没有用。你必须在必要之事上取得成功。 — Winston Churchill｜未知
 - I am not bound to win, but I am bound to be true. I am not bound to succeed, but I am bound to live by the light that I have. I must stand with anybody that stands right, and stand with him while he is right, and part with him when he goes wrong. — Abraham Lincoln｜未知
+- 我不一定要赢，但我必须忠于真实。我不一定要成功，但我必须遵循我所拥有的光而活。我必须与站在正义一边的人并肩而立；他做对时与他同在，他做错时与他分道扬镳。 — Abraham Lincoln｜未知
 - To improve is to change; to be perfect is to change often. — Winston Churchill｜未知
+- 改进就是改变；要臻于完美，就要经常改变。 — Winston Churchill｜未知
 - In times of change, learners inherit the earth, while the learned find themselves beautifully equipped to deal with a world that no longer exists. — Eric Hoffer｜未知
+- 在变革的时代，学习者继承大地，而自以为学成的人却发现自己虽装备精良，却只能面对一个早已不复存在的世界。 — Eric Hoffer｜未知
 - If you're changing the world, you're working on important things. You're excited to get up in the morning. — Larry Page｜未知
+- 如果你在改变世界，你就在做重要的事。你会兴奋地早起。 — Larry Page｜未知
 - The one thing that you have that nobody else has is you. Your voice, your mind, your story, your vision. So write and draw and build and play and dance and live as only you can. — Neil Gaiman｜未知
+- 你拥有而别人没有的唯一东西，就是你自己：你的声音、你的思想、你的故事、你的愿景。所以写作、涂画、建造、玩耍、舞蹈、生活吧——用你能做到的独特方式。 — Neil Gaiman｜未知
 - The biggest room in the world is room for improvement. — Helmut Schmidt｜未知
+- 世界上最大的空间，是“提升的空间”。 — Helmut Schmidt｜未知
 - Whether you think you can or you think you can't, you are right. — Henry Ford｜未知
+- 无论你觉得自己能，还是觉得自己不能，你都是对的。 — Henry Ford｜未知
 - There's power in looking silly and not caring that you do. — Amy Poehler｜未知
+- 让自己看起来很傻却毫不在意，这里面有力量。 — Amy Poehler｜未知
 - In the middle of every difficulty lies opportunity. — Albert Einstein｜未知
+- 每一次困难的中心都蕴藏着机会。 — Albert Einstein｜未知
 - I think people who are creative are the luckiest people on earth. I know that there are no shortcuts, but you must keep your faith in something Greater than you and keep doing what you love. Do what you love, and you will find the way to get it out to the world. — Judy Collins｜未知
+- 我认为有创造力的人是世上最幸运的人。我知道没有捷径，但你必须把信念寄托在比你更伟大的事物上，并继续做你所热爱的事。去做你热爱的事，你会找到把它带向世界的方法。 — Judy Collins｜未知
 - Every great dream begins with a dreamer. Always remember, you have within you the strength, the patience, and the passion to reach for the stars to change the world. — Harriet Tubman｜未知
+- 每一个伟大的梦想都始于一个梦想家。永远记住，你内心拥有力量、耐心与激情，足以伸手摘星并改变世界。 — Harriet Tubman｜未知
 - If you're trying to achieve, there will be roadblocks. I've had them; everybody has had them. But obstacles don't have to stop you. If you run into a wall, don't turn around and give up. Figure out how to climb it, go through it, or work around it. — Michael Jordan｜未知
+- 如果你想有所成就，路上一定会有障碍。我遇到过；每个人都遇到过。但障碍不必阻止你。若你撞上一堵墙，不要转身放弃。想办法爬过去、穿过去，或绕过去。 — Michael Jordan｜未知
 - It always seems impossible until it's done. — Nelson Mandela｜未知
+- 在完成之前，一切看起来都不可能。 — Nelson Mandela｜未知
 - Optimism is the faith that leads to achievement. Nothing can be done without hope and confidence. — Helen Keller｜未知
+- 乐观是通向成就的信念。没有希望与自信，任何事都做不成。 — Helen Keller｜未知
 - Good, better, best. Never let it rest. ‘Til your good is better and your better is best. — Jerome｜未知
+- 好、更好、最好。永不止步。‘直到你的“好”变成“更好”，你的“更好”变成“最好”。 — Jerome｜未知
 - Accept the challenges so that you can feel the exhilaration of victory. — George S. Patton｜未知
+- 接受挑战，这样你才能感受到胜利的欢欣。 — George S. Patton｜未知
 - We should not give up and we should not allow the problem to defeat us. — A. P. J. Abdul Kalam｜未知
+- 我们不应放弃，也不应让问题击败我们。 — A. P. J. Abdul Kalam｜未知
 - Difficulties increase the nearer we get to the goal. — Johann Wolfgang von Goethe｜未知
+- 离目标越近，困难越多。 — Johann Wolfgang von Goethe｜未知
 - Only I can change my life. No one can do it for me. — Carol Burnett｜未知
+- 只有我能改变我的人生。没人能替我做到。 — Carol Burnett｜未知
 - If you want to succeed you should strike out on new paths, rather than travel the worn paths of accepted success. — John Locke｜未知
+- 若想成功，你应开辟新路，而不是沿着被认可的成功旧路前行。 — John Locke｜未知
 - There is nothing impossible to him who will try. — Alexander the Great｜未知
+- 对于肯去尝试的人，没有什么是不可能的。 — Alexander the Great｜未知
 - I'll prepare and someday my chance will come. — Abraham Lincoln｜未知
+- 我会准备好，总有一天机会会到来。 — Abraham Lincoln｜未知
 - The dream was always running ahead of me. To catch up, to live for a moment in unison with it, that was the miracle. — Anaïs Nin｜未知
+- 梦想总是在我前方奔跑。追上它，与它短暂同频地活在一起，那就是奇迹。 — Anaïs Nin｜未知
 - A person who never made a mistake never tried anything new. — Albert Einstein｜未知
+- 一个从不犯错的人，从未尝试过任何新事物。 — Albert Einstein｜未知
 - With the new day comes new strength and new thoughts. — Eleanor Roosevelt｜未知
+- 新的一天带来新的力量与新的想法。 — Eleanor Roosevelt｜未知
 - If you aren't going all the way, why go at all? — Joe Namath｜未知
+- 如果你不打算全力以赴，那为什么还要开始？ — Joe Namath｜未知
 - Let us sacrifice our today so that our children can have a better tomorrow. — A. P. J. Abdul Kalam｜未知
+- 让我们牺牲今天，好让我们的孩子拥有更好的明天。 — A. P. J. Abdul Kalam｜未知
 - Keep your eyes on the stars and your feet on the ground. — Theodore Roosevelt｜未知
+- 眼望星空，脚踏实地。 — Theodore Roosevelt｜未知
 - The more man meditates upon good thoughts, the better will be his world and the world at large. — Confucius｜未知
+- 人越是沉思善念，他的世界以及整个世界就会越好。 — Confucius｜未知
 - By failing to prepare, you are preparing to fail. — Benjamin Franklin｜未知
+- 不做准备，就是在准备失败。 — Benjamin Franklin｜未知
 - Learning is the beginning of wealth. Learning is the beginning of health. Learning is the beginning of spirituality. Searching and learning is where the miracle process all begins. — Jim Rohn｜未知
+- 学习是财富的开始。学习是健康的开始。学习是灵性的开始。探索与学习，是奇迹过程的起点。 — Jim Rohn｜未知
 - Do the difficult things while they are easy and do the great things while they are small. A journey of a thousand miles must begin with a single step. — Laozi｜未知
+- 趁事情容易时去做困难的事，趁事情微小时去做伟大的事。千里之行，始于足下。 — Laozi｜未知
 - Our greatest weakness lies in giving up. The most certain way to succeed is always to try just one more time. — Thomas Edison｜未知
+- 我们最大的弱点在于放弃。最确定的成功之道，就是再试一次。 — Thomas Edison｜未知
 - Without hard work, nothing grows but weeds. — Gordon Hinckley｜未知
+- 没有辛勤劳动，长出来的只有杂草。 — Gordon Hinckley｜未知
 - Life is 10% what happens to you and 90% how you react to it. — Chuck Swindoll｜未知
+- 生活 10% 取决于发生在你身上的事，90% 取决于你如何应对。 — Chuck Swindoll｜未知
 - Quality is not an act; it is a habit. — Aristotle｜未知
+- 质量不是一次行为，而是一种习惯。 — Aristotle｜未知
 - Go for it now. The future is promised to no one. — Wayne Dyer｜未知
+- 现在就去做。未来不向任何人承诺。 — Wayne Dyer｜未知
 - Difficulties are meant to rouse, not discourage. The human spirit is to grow strong by conflict. — William Ellery Channing｜未知
+- 困难是为了唤起人，而不是使人气馁。人的精神会在冲突中变得强大。 — William Ellery Channing｜未知
 - Beginning today, treat everyone you meet as if they were going to be dead by midnight. Extend to them all the care, kindness and understanding you can muster, and do it with no thought of any reward. Your life will never be the same again. — Og Mandino｜未知
+- 从今天起，对待你遇到的每一个人，都像他们会在午夜前离世一样。把你能给出的关怀、善意与理解都给他们，不求任何回报。你的生活将从此不再相同。 — Og Mandino｜未知
 - The will to win, the desire to succeed, the urge to reach your full potential... these are the keys that will unlock the door to personal excellence. — Confucius｜未知
+- 渴望胜利、渴望成功、渴望发挥全部潜能……这些都是开启个人卓越之门的钥匙。 — Confucius｜未知
 - Mountains cannot be surmounted except by winding paths. — Johann Wolfgang von Goethe｜未知
+- 翻越高山，唯有蜿蜒小径。 — Johann Wolfgang von Goethe｜未知
 - I'd rather attempt to do something great and fail than to attempt to do nothing and succeed. — Robert Schuller｜未知
+- 我宁愿尝试做伟大的事而失败，也不愿尝试什么都不做却成功。 — Robert Schuller｜未知
 - If you can dream it, you can do it. — Walt Disney｜未知
+- 如果你能梦到它，你就能做到它。 — Walt Disney｜未知
 - I can, therefore I am. — Simone Weil｜未知
+- 我能，所以我在。 — Simone Weil｜未知
 - You can't cross the sea merely by standing and staring at the water. — Rabindranath Tagore｜未知
+- 你不可能仅靠站着凝望海水就横渡大海。 — Rabindranath Tagore｜未知
 - Failure will never overtake me if my determination to succeed is strong enough. — Og Mandino｜未知
+- 只要我成功的决心足够强，失败就永远追不上我。 — Og Mandino｜未知
 - The secret of getting ahead is getting started. — Mark Twain｜未知
+- 领先一步的秘诀，就是开始。 — Mark Twain｜未知
 - Motivation is the art of getting people to do what you want them to do because they want to do it. — Dwight D. Eisenhower｜未知
+- 激励是一门艺术：让人去做你想让他们做的事，而且他们还愿意去做。 — Dwight D. Eisenhower｜未知
 - There is no passion to be found playing small - in settling for a life that is less than the one you are capable of living. — Nelson Mandela｜未知
+- 在小打小闹 - 满足于不及你能力的人生里，找不到任何激情。 — Nelson Mandela｜未知
 - I know not age, nor weariness nor defeat. — Rose Kennedy｜未知
+- 我不知年龄，不知疲惫，不知失败。 — Rose Kennedy｜未知
 - Do not wait; the time will never be 'just right.' Start where you stand, and work with whatever tools you may have at your command, and better tools will be found as you go along. — George Herbert｜未知
+- 不要等待；时机永远不会“刚刚好”。从你站立之处开始，用你手边的工具去做；更好的工具会在前行中出现。 — George Herbert｜未知
 - Believe in yourself! Have faith in your abilities! Without a humble but reasonable confidence in your own powers you cannot be successful or happy. — Norman Vincent Peale｜未知
+- 相信自己！相信你的能力！没有谦逊而合理的自信，你不可能成功或快乐。 — Norman Vincent Peale｜未知
 - Set your goals high, and don't stop till you get there. — Bo Jackson｜未知
+- 把目标定得高一些，并且坚持到达那里。 — Bo Jackson｜未知
 - Do the one thing you think you cannot do. Fail at it. Try again. Do better the second time. The only people who never tumble are those who never mount the high wire. This is your moment. Own it. — Oprah Winfrey｜未知
+- 去做那件你以为自己做不到的事。失败一次。再试。第二次做得更好。永远不跌倒的人，是从不登上钢丝的人。这是你的时刻。把它掌握住。 — Oprah Winfrey｜未知
 - There is only one corner of the universe you can be certain of improving, and that's your own self. — Aldous Huxley｜未知
+- 宇宙中唯一你能确定可以改善的一隅，就是你自己。 — Aldous Huxley｜未知
 - You are not here merely to make a living. You are here in order to enable the world to live more amply, with greater vision, with a finer spirit of hope and achievement. You are here to enrich the world, and you impoverish yourself if you forget the errand. — Woodrow Wilson｜未知
+- 你来世上不只是为了谋生。你来，是为了让世界生活得更丰盛，拥有更大的视野、更高尚的希望与成就之精神。你来，是为了丰富世界；若你忘了这一使命，你便使自己贫乏。 — Woodrow Wilson｜未知
 - Knowing is not enough; we must apply! — Johann Wolfgang von Goethe｜未知
+- 知道还不够；我们必须去做！ — Johann Wolfgang von Goethe｜未知
 - One who gains strength by overcoming obstacles possesses the only strength which can overcome adversity. — Albert Schweitzer｜未知
+- 通过克服障碍而获得力量的人，拥有唯一能战胜逆境的力量。 — Albert Schweitzer｜未知
 - The best way to predict your future is to create it. — Peter Drucker｜未知
+- 预测未来最好的方式，就是创造未来。 — Peter Drucker｜未知
 - I will prepare and someday my chance will come. — Abraham Lincoln｜未知
+- 我会准备好，总有一天机会会到来。 — Abraham Lincoln｜未知
 - Start where you are. Use what you have. Do what you can. — Arthur Ashe｜未知
+- 从你所在之处开始。用你所拥有的。尽你所能去做。 — Arthur Ashe｜未知
 - Setting goals is the first step in turning the invisible into the visible. — Tony Robbins｜未知
+- 设定目标，是把无形变为有形的第一步。 — Tony Robbins｜未知
 - Learn from yesterday, live for today, hope for tomorrow. — Albert Einstein｜未知
+- 从昨天汲取教训，为今天而活，对明天怀抱希望。 — Albert Einstein｜未知
 - Always do your best. What you plant now, you will harvest later. — Og Mandino｜未知
+- 永远做到最好。你现在播下什么，日后就收获什么。 — Og Mandino｜未知
 - To accomplish great things, we must not only act, but also dream; not only plan, but also believe. — Anatole France｜未知
+- 要成就伟业，我们不仅要行动，也要梦想；不仅要计划，也要相信。 — Anatole France｜未知
 - Believe deep down in your heart that you're destined to do great things. — Joe Paterno｜未知
+- 在内心深处相信，你注定要成就伟大的事。 — Joe Paterno｜未知
 - Be Impeccable with Your Word. Speak with integrity. Say only what you mean. Avoid using the word to speak against yourself or to gossip about others. Use the power of your word in the direction of truth and love. — Don Miguel Ruiz｜未知
+- 言语要无懈可击。以正直说话。只说你真正想说的。避免用言语攻击自己，或闲言碎语谈论他人。让你的言语之力指向真理与爱。 — Don Miguel Ruiz｜未知
 - Always bear in mind that your own resolution to succeed is more important than any one thing. — Abraham Lincoln｜未知
+- 永远牢记，你自己的成功决心比任何事情都更重要。 — Abraham Lincoln｜未知
 - Once we accept our limits, we go beyond them. — Albert Einstein｜未知
+- 一旦我们接受自己的局限，我们便能超越它们。 — Albert Einstein｜未知
 - When you reach the end of your rope, tie a knot in it and hang on. — Franklin D. Roosevelt｜未知
+- 当你走到绳索尽头时，打个结，继续坚持。 — Franklin D. Roosevelt｜未知
 - I know where I'm going and I know the truth, and I don't have to be what you want me to be. I'm free to be what I want. — Muhammad Ali｜未知
+- 我知道我要去哪里，我知道真理，我不必成为你想让我成为的样子。我可以自由做我想做的自己。 — Muhammad Ali｜未知
 - It does not matter how slowly you go as long as you do not stop. — Confucius｜未知
+- 只要你不停下，走得再慢也无妨。 — Confucius｜未知
 - Your talent is God's gift to you. What you do with it is your gift back to God. — Leo Buscaglia｜未知
+- 你的才华是上帝赐予你的礼物。你如何使用它，是你回赠上帝的礼物。 — Leo Buscaglia｜未知
 - Change your life today. Don't gamble on the future, act now, without delay. — Simone de Beauvoir｜未知
+- 从今天起改变你的生活。别在未来上赌博，立刻行动，不要拖延。 — Simone de Beauvoir｜未知
 - Look up at the stars and not down at your feet. Try to make sense of what you see, and wonder about what makes the universe exist. Be curious. — Stephen Hawking｜未知
+- 仰望星空，而不是低头看脚下。试着理解你所看到的一切，并思考宇宙为何存在。保持好奇。 — Stephen Hawking｜未知
 - What you get by achieving your goals is not as important as what you become by achieving your goals. — Zig Ziglar｜未知
+- 达成目标得到什么并不如你在达成目标过程中成为什么那般重要。 — Zig Ziglar｜未知
 - Consult not your fears but your hopes and your dreams. Think not about your frustrations, but about your unfulfilled potential. Concern yourself not with what you tried and failed in, but with what it is still possible for you to do. — Pope John XXIII｜未知
+- 不要向恐惧请教，而要向希望与梦想请教。不要想着挫折，而要想着未尽的潜能。不要纠结于你尝试并失败过什么，而要关心你仍然可能做到什么。 — Pope John XXIII｜未知
 - The key is to keep company only with people who uplift you, whose presence calls forth your best. — Epictetus｜未知
+- 关键是只与那些能鼓舞你的人为伴，他们的存在能唤起你最好的一面。 — Epictetus｜未知
 - Choose a job you love, and you will never have to work a day in your life. — Confucius｜未知
+- 选择一份你热爱的工作，你将一生都无需“工作”一天。 — Confucius｜未知
 - Ability is what you're capable of doing. Motivation determines what you do. Attitude determines how well you do it. — Lou Holtz｜未知
+- 能力是你做得到什么；动力决定你去做什么；态度决定你做得多好。 — Lou Holtz｜未知
 - As you think, so shall you become. — Bruce Lee｜未知
+- 你怎么想，你就会变成怎样的人。 — Bruce Lee｜未知
 - Do something wonderful, people may imitate it. — Albert Schweitzer｜未知
+- 做些美好的事，人们也许会效仿。 — Albert Schweitzer｜未知
 - In the depth of winter, I finally learned that there was within me an invincible summer. — Albert Camus｜未知
+- 在严冬深处，我终于明白：我内心有一个不可战胜的夏天。 — Albert Camus｜未知
 - Nobody will believe in you unless you believe in yourself. — Liberace｜未知
+- 除非你相信自己，否则没人会相信你。 — Liberace｜未知
