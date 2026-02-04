@@ -255,26 +255,27 @@ export const Editor: React.FC = () => {
       )}
 
       {/* 写作页头部 */}
-      <div className="min-h-[56px] bg-paper-50/95 dark:bg-zinc-900/95 border-b border-paper-200 dark:border-zinc-800 flex flex-col lg:flex-row lg:items-center gap-2 px-4 sm:px-6 md:px-8 text-[11px] font-medium tracking-wide sticky top-0 z-20 backdrop-blur-sm shadow-sm transition-colors">
-         {/* 左侧面包屑 */}
-         <div className="flex items-center gap-2 w-full lg:max-w-[35%] shrink truncate">
+      <div className="min-h-[56px] bg-paper-50/95 dark:bg-zinc-900/95 border-b border-paper-200 dark:border-zinc-800 sticky top-0 z-20 backdrop-blur-sm shadow-sm transition-colors flex items-center">
+        <div className="w-full max-w-3xl mx-auto flex flex-col lg:flex-row lg:items-center gap-2 px-4 sm:px-6 md:px-8 text-[11px] font-medium tracking-wide">
+          {/* 左侧面包屑 */}
+          <div className="flex items-center gap-2 w-full min-w-0 lg:flex-1 truncate">
             <span className="text-ink-400 dark:text-zinc-500 flex items-center gap-2 shrink-0"><Book className="w-3.5 h-3.5" /> {project.title}</span>
             <span className="text-ink-300 dark:text-zinc-700 shrink-0">/</span>
             <span className="text-ink-500 dark:text-zinc-500 truncate">{activeVolume?.title}</span>
             <span className="text-ink-300 dark:text-zinc-700 shrink-0">/</span>
             <span className="text-ink-900 dark:text-zinc-100 font-bold truncate">{activeDoc.title}</span>
-         </div>
-         
-         {/* 右侧工具组 */}
-          <div className="ml-auto flex items-center gap-2 sm:gap-3 md:gap-4 w-full lg:max-w-[35%] justify-end flex-wrap">
+          </div>
+          
+          {/* 右侧工具组 */}
+          <div className="ml-auto flex items-center gap-2 sm:gap-3 md:gap-4 w-full lg:w-auto justify-end flex-wrap">
             <button 
-                onClick={() => setViewMode(ViewMode.SETTINGS)}
-                className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-paper-100 dark:bg-zinc-800 hover:bg-paper-200 dark:hover:bg-zinc-700 rounded-lg text-[10px] font-bold text-ink-600 dark:text-zinc-300 transition-all border border-paper-200 dark:border-zinc-700 shrink truncate group"
-                title="进入控制中心配置模型"
+              onClick={() => setViewMode(ViewMode.SETTINGS)}
+              className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-paper-100 dark:bg-zinc-800 hover:bg-paper-200 dark:hover:bg-zinc-700 rounded-lg text-[10px] font-bold text-ink-600 dark:text-zinc-300 transition-all border border-paper-200 dark:border-zinc-700 shrink truncate group"
+              title="进入控制中心配置模型"
             >
-                <Sparkles className="w-3 h-3 text-brand-500 group-hover:animate-pulse" />
-                <span className="truncate max-w-[80px]">{project.aiSettings.model}</span>
-                <Settings className="w-2.5 h-2.5 opacity-30 group-hover:opacity-100" />
+              <Sparkles className="w-3 h-3 text-brand-500 group-hover:animate-pulse" />
+              <span className="truncate max-w-[80px]">{project.aiSettings.model}</span>
+              <Settings className="w-2.5 h-2.5 opacity-30 group-hover:opacity-100" />
             </button>
 
             {hasAIAccess && (
@@ -315,7 +316,8 @@ export const Editor: React.FC = () => {
                   </button>
                 )}
             </div>
-         </div>
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden relative">
@@ -425,15 +427,15 @@ export const Editor: React.FC = () => {
 
         {/* Editor Scroller */}
         <div id="editor-scroll-body" className="flex-1 overflow-y-auto bg-dot-pattern scroll-smooth transition-colors">
-             <div className="w-full mx-auto py-8 sm:py-12 md:py-20 pb-40 sm:pb-48 flex justify-center px-4 sm:px-6">
-                 <div className="w-full max-w-4xl bg-white dark:bg-zinc-900 min-h-[75vh] px-6 sm:px-10 md:px-16 lg:px-24 py-12 sm:py-16 md:py-20 relative shadow-[0_30px_100px_rgba(0,0,0,0.05)] dark:shadow-[0_30px_100px_rgba(0,0,0,0.5)] border border-paper-200 dark:border-zinc-800/50 rounded-lg transition-colors">
+             <div className="w-full mx-auto py-6 sm:py-8 md:py-10 pb-40 sm:pb-48 flex justify-center px-[5vw]">
+                 <div className="w-full bg-white dark:bg-zinc-900 min-h-[75vh] px-4 sm:px-6 md:px-8 lg:px-10 py-6 sm:py-8 md:py-10 relative shadow-[0_30px_100px_rgba(0,0,0,0.05)] dark:shadow-[0_30px_100px_rgba(0,0,0,0.5)] border border-paper-200 dark:border-zinc-800/50 rounded-lg transition-colors">
                     
-                    <div className="mb-16 text-center space-y-8">
-                        <div className="flex items-center justify-center gap-2 mb-2 opacity-50 hover:opacity-100 transition-opacity">
+                    <div className="mb-6 text-center space-y-3">
+                        <div className="flex items-center justify-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
                             <input 
                                 value={activeDoc.timeNode || ''} 
                                 onChange={e => updateDocument(activeDoc.id, { timeNode: e.target.value })}
-                                className="text-center text-xs font-serif text-ink-400 dark:text-zinc-400 bg-transparent outline-none border-b border-transparent hover:border-paper-200 dark:hover:border-zinc-700 focus:border-ink-500 dark:focus:border-zinc-500 transition-all w-48"
+                                className="text-center text-[10px] font-serif text-ink-400 dark:text-zinc-400 bg-transparent outline-none border-b border-transparent hover:border-paper-200 dark:hover:border-zinc-700 focus:border-ink-500 dark:focus:border-zinc-500 transition-all w-48"
                                 placeholder="氛围/时间坐标..."
                             />
                             {hasAIAccess && (
@@ -446,7 +448,7 @@ export const Editor: React.FC = () => {
                         <input 
                             value={activeDoc.title}
                             onChange={e => updateDocument(activeDoc.id, { title: e.target.value })}
-                            className="text-4xl md:text-5xl font-black text-ink-900 dark:text-zinc-100 text-center w-full bg-transparent outline-none font-serif tracking-tight placeholder:text-paper-100 dark:placeholder:text-zinc-800"
+                            className="text-lg sm:text-xl md:text-2xl font-black text-ink-900 dark:text-zinc-100 text-center w-full bg-transparent outline-none font-serif tracking-tight placeholder:text-paper-100 dark:placeholder:text-zinc-800"
                             placeholder="章节标题"
                         />
                         
@@ -467,7 +469,7 @@ export const Editor: React.FC = () => {
                             updateDocument(activeDoc.id, { content: e.target.value });
                         }}
                         onPaste={handlePaste}
-                        className="w-full bg-transparent resize-none outline-none font-serif text-lg md:text-xl leading-[2.2] text-ink-800 dark:text-zinc-300 placeholder:text-paper-100 dark:placeholder:text-zinc-800 selection:bg-paper-200 dark:selection:bg-zinc-700 selection:text-ink-900 dark:selection:text-white overflow-hidden subpixel-antialiased"
+                        className="w-full bg-transparent resize-none outline-none font-serif text-sm sm:text-base md:text-lg leading-[1.7] text-ink-800 dark:text-zinc-300 placeholder:text-paper-100 dark:placeholder:text-zinc-800 selection:bg-paper-200 dark:selection:bg-zinc-700 selection:text-ink-900 dark:selection:text-white overflow-hidden subpixel-antialiased"
                         style={{
                              textRendering: 'optimizeLegibility',
                              WebkitFontSmoothing: 'antialiased',
@@ -529,7 +531,7 @@ export const Editor: React.FC = () => {
               className="fixed inset-0 z-40 bg-black/30 dark:bg-black/60 backdrop-blur-sm lg:hidden"
               onClick={() => setShowBookmarks(false)}
             ></div>
-            <div className="fixed inset-y-0 right-0 z-50 w-[min(90vw,18rem)] bg-paper-50 dark:bg-zinc-900 border-l border-paper-200 dark:border-zinc-800 overflow-y-auto p-6 space-y-6 animate-in slide-in-from-right duration-300 shrink-0 shadow-2xl custom-scrollbar transition-colors lg:static lg:z-10 lg:w-72">
+            <div className="fixed top-14 bottom-0 right-0 z-50 w-[min(90vw,18rem)] bg-paper-50 dark:bg-zinc-900 border-l border-paper-200 dark:border-zinc-800 overflow-y-auto p-6 space-y-6 animate-in slide-in-from-right duration-300 shrink-0 shadow-2xl custom-scrollbar transition-colors lg:static lg:top-auto lg:bottom-auto lg:right-auto lg:z-10 lg:w-72">
             <div>
                <h4 className="text-[10px] font-black text-ink-400 dark:text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                  <BookmarkIcon className="w-3 h-3"/> 快速书签

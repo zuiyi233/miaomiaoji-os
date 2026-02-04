@@ -28,6 +28,34 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
   temperature: 0.9
 };
 
+const getProviderConfigFlag = (provider: string): string | null => {
+	try {
+		return localStorage.getItem(`nao_ai_provider_configured_${provider}`);
+	} catch {
+		return null;
+	}
+};
+
+const setProviderConfigFlag = (provider: string, value: 'true' | 'false') => {
+	try {
+		localStorage.setItem(`nao_ai_provider_configured_${provider}`, value);
+	} catch {
+		return;
+	}
+};
+
+const isProviderConfigured = (settings: AISettings): boolean => {
+	if (!settings.model) return false;
+	if (settings.provider === 'gemini') {
+		const flag = getProviderConfigFlag('gemini');
+		return flag !== 'false';
+	}
+	if (settings.provider === 'local' || settings.provider === 'proxy' || settings.provider === 'openai' || settings.provider === 'openrouter' || settings.provider === 'anthropic') {
+		return Boolean(settings.proxyEndpoint && settings.proxyEndpoint.trim());
+	}
+	return true;
+};
+
 // Hardcoded recommended models for Gemini to ensure stability and guideline compliance
 const GEMINI_MODELS: ModelInfo[] = [
   { id: 'gemini-3-flash-preview', name: 'Gemini 3.0 Flash (Recommended)', provider: 'gemini' },
@@ -46,6 +74,10 @@ export const clearModelCache = async (provider?: string) => {
 
 export const fetchAvailableModels = async (settings: AISettings): Promise<ModelInfo[]> => {
 	const cacheKey = `${CACHE_KEY_PREFIX}${settings.provider}`;
+
+	if (!isProviderConfigured(settings)) {
+		return [];
+	}
 
 	if (settings.provider !== 'local') {
 		try {
@@ -85,6 +117,9 @@ export const fetchAvailableModels = async (settings: AISettings): Promise<ModelI
 };
 
 const callGemini = async (prompt: string, systemInstruction: string, settings: AISettings): Promise<string> => {
+	if (!isProviderConfigured(settings)) {
+		return "";
+	}
 	const modelId = settings.model || 'gemini-3-flash-preview';
 	const body = JSON.stringify({
 		contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -94,14 +129,24 @@ const callGemini = async (prompt: string, systemInstruction: string, settings: A
 		},
 		systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined
 	});
-	const data = await apiRequest<any>(`/api/v1/ai/proxy`, {
-		method: 'POST',
-		body: JSON.stringify({ provider: 'gemini', path: `v1beta/models/${modelId}:generateContent`, body })
-	});
-	return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+	try {
+		const data = await apiRequest<any>(`/api/v1/ai/proxy`, {
+			method: 'POST',
+			body: JSON.stringify({ provider: 'gemini', path: `v1beta/models/${modelId}:generateContent`, body })
+		});
+		return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+	} catch (error) {
+		if ((error as { code?: number })?.code === 10008) {
+			setProviderConfigFlag('gemini', 'false');
+		}
+		return "";
+	}
 };
 
 const callOpenAICompatible = async (prompt: string, systemInstruction: string, settings: AISettings): Promise<string> => {
+	if (!isProviderConfigured(settings)) {
+		return "AI 供应商未配置，请先在设置中填写接口地址与模型。";
+	}
 	const body = JSON.stringify({
 		model: settings.model,
 		messages: [
@@ -122,7 +167,9 @@ const callOpenAICompatible = async (prompt: string, systemInstruction: string, s
 		});
 		return data.choices?.[0]?.message?.content || "";
 	} catch (error) {
-		console.error("OpenAI/Proxy/Local Error:", error);
+		if (isProviderConfigured(settings)) {
+			console.error("OpenAI/Proxy/Local Error:", error);
+		}
 		return "AI 接口调用失败，请检查配置或本地服务状态。";
 	}
 };
@@ -137,6 +184,7 @@ export const generateText = async (prompt: string, systemInstruction: string, se
 
 export const generateJSON = async (prompt: string, systemInstruction: string, schema: any, settings: AISettings): Promise<any> => {
   if (settings.provider === 'gemini') {
+		if (!isProviderConfigured(settings)) return null;
 		const modelId = settings.model || 'gemini-3-flash-preview';
 		const body = JSON.stringify({
 			contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -148,12 +196,19 @@ export const generateJSON = async (prompt: string, systemInstruction: string, sc
 			},
 			systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined
 		});
-		const data = await apiRequest<any>(`/api/v1/ai/proxy`, {
-			method: 'POST',
-			body: JSON.stringify({ provider: 'gemini', path: `v1beta/models/${modelId}:generateContent`, body })
-		});
-		const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-		return JSON.parse(text || "{}");
+		try {
+			const data = await apiRequest<any>(`/api/v1/ai/proxy`, {
+				method: 'POST',
+				body: JSON.stringify({ provider: 'gemini', path: `v1beta/models/${modelId}:generateContent`, body })
+			});
+			const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+			return JSON.parse(text || "{}");
+		} catch (error) {
+			if ((error as { code?: number })?.code === 10008) {
+				setProviderConfigFlag('gemini', 'false');
+			}
+			return null;
+		}
 	} else {
     const jsonPrompt = `${prompt}\n\n请严格按此 JSON 结构返回：${JSON.stringify(schema)}`;
     const text = await callOpenAICompatible(jsonPrompt, systemInstruction, settings);
@@ -262,6 +317,10 @@ export async function* generateTextStream(
 			}
 		}
 	} else {
+    if (!isProviderConfigured(settings)) {
+      yield "AI 供应商未配置，请先在设置中填写接口地址与模型。";
+      return;
+    }
     const messages = [
         { role: "system", content: systemInstruction },
         ...history.map(h => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.parts[0].text })),

@@ -306,57 +306,29 @@ const LayoutContent: React.FC = () => {
           >
             
               {isToolbarCollapsed ? (
-                <>
-                  {activeProjectId && (
-                    <button
-                      onClick={exitProject}
-                      className="p-2 rounded-full hover:bg-paper-100 dark:hover:bg-zinc-800 transition-all text-ink-500 dark:text-zinc-400"
-                      title="返回仪表盘"
-                    >
-                      <LayoutDashboard className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setViewMode(ViewMode.SETTINGS)}
-                    className={`p-2 rounded-full transition-all ${viewMode === ViewMode.SETTINGS ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md' : 'hover:bg-paper-50 dark:hover:bg-zinc-800 text-ink-500 dark:text-zinc-400'}`}
-                    title="设置中心"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </button>
-                </>
+                <button
+                  onClick={() => setViewMode(ViewMode.SETTINGS)}
+                  className={`p-2 rounded-full transition-all ${viewMode === ViewMode.SETTINGS ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md' : 'hover:bg-paper-50 dark:hover:bg-zinc-800 text-ink-500 dark:text-zinc-400'}`}
+                  title="设置中心"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
               ) : (
-                <>
-                  {/* 返回仪表盘按钮 (仅在进入项目后显示) */}
-                  {activeProjectId && (
-                    <button
-                      onClick={exitProject}
-                      className="flex items-center gap-2 px-2.5 py-1 hover:bg-paper-100 dark:hover:bg-zinc-800 rounded-xl transition-all group text-ink-500 dark:text-zinc-400"
-                      title="返回仪表盘"
-                    >
-                      <LayoutDashboard className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                      <span className="text-[9px] font-black uppercase tracking-widest hidden sm:block">Dashboard</span>
-                    </button>
-                  )}
-
-                  <div className="w-px h-4 bg-paper-200 dark:bg-zinc-800 mx-1"></div>
-
-                  {/* 设置中心入口 */}
-                  <button
-                    onClick={() => setViewMode(ViewMode.SETTINGS)}
-                    className={`flex items-center gap-2 pl-2.5 pr-2 py-1 rounded-xl transition-all group ${viewMode === ViewMode.SETTINGS ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md' : 'hover:bg-paper-50 dark:hover:bg-zinc-800'}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[8px] font-black transition-colors ${viewMode === ViewMode.SETTINGS ? 'bg-white/20 dark:bg-black/20' : 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-ink-900'}`}>
-                        {user?.username.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex flex-col items-start leading-none mr-1">
-                        <span className="text-[9px] font-black uppercase tracking-widest">{user?.username}</span>
-                        <span className="text-[8px] font-medium opacity-50 uppercase">{user?.role}</span>
-                      </div>
+                <button
+                  onClick={() => setViewMode(ViewMode.SETTINGS)}
+                  className={`flex items-center gap-2 pl-2.5 pr-2 py-1 rounded-xl transition-all group ${viewMode === ViewMode.SETTINGS ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md' : 'hover:bg-paper-50 dark:hover:bg-zinc-800'}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[8px] font-black transition-colors ${viewMode === ViewMode.SETTINGS ? 'bg-white/20 dark:bg-black/20' : 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-ink-900'}`}>
+                      {user?.username.charAt(0).toUpperCase()}
                     </div>
-                    <Settings className={`w-3.5 h-3.5 opacity-40 group-hover:opacity-100 group-hover:rotate-90 transition-all ${viewMode === ViewMode.SETTINGS ? 'opacity-100' : ''}`} />
-                  </button>
-                </>
+                    <div className="flex flex-col items-start leading-none mr-1">
+                      <span className="text-[9px] font-black uppercase tracking-widest">{user?.username}</span>
+                      <span className="text-[8px] font-medium opacity-50 uppercase">{user?.role}</span>
+                    </div>
+                  </div>
+                  <Settings className={`w-3.5 h-3.5 opacity-40 group-hover:opacity-100 group-hover:rotate-90 transition-all ${viewMode === ViewMode.SETTINGS ? 'opacity-100' : ''}`} />
+                </button>
               )}
 
               <button
