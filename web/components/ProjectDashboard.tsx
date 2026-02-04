@@ -650,20 +650,20 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onCreateNew 
         </div>
       )}
 
-      <div className="max-w-[1400px] mx-auto p-8 md:p-12 space-y-8 pt-20">
-        <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-paper-200 dark:border-zinc-800 pb-8">
+      <div className="max-w-[1400px] mx-auto p-4 sm:p-6 md:p-12 space-y-8 pt-16 sm:pt-20">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-paper-200 dark:border-zinc-800 pb-6 sm:pb-8">
           <div className="flex-1">
-             <h1 className="text-4xl font-black text-ink-900 dark:text-zinc-100 font-serif mb-2">{period}好，创造者</h1>
+             <h1 className="text-3xl sm:text-4xl font-black text-ink-900 dark:text-zinc-100 font-serif mb-2">{period}好，创造者</h1>
              <p className="text-ink-400 font-medium font-serif italic">{dateStr}</p>
           </div>
-          <div className="text-right">
-            <div className="text-5xl font-black text-ink-900 dark:text-zinc-100 tabular-nums leading-none tracking-tighter mb-1">{timeStr}</div>
+          <div className="text-left md:text-right">
+            <div className="text-3xl sm:text-4xl md:text-5xl font-black text-ink-900 dark:text-zinc-100 tabular-nums leading-none tracking-tighter mb-1">{timeStr}</div>
             <div className="text-[10px] font-black text-brand-500 uppercase tracking-[0.3em]">CST · 中国标准时间</div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div onClick={() => lastActiveDoc && (selectProject(lastActiveDoc.project.id), setActiveDocumentId(lastActiveDoc.doc.id), setViewMode(ViewMode.WRITER))} className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-[2.5rem] p-8 flex flex-col justify-between group min-h-[220px] transition-all cursor-pointer ${lastActiveDoc ? 'bg-white dark:bg-zinc-900 border border-paper-200 dark:border-zinc-800 hover:shadow-xl' : 'bg-paper-100 dark:bg-zinc-800 cursor-default opacity-50'}`}>
+          <div onClick={() => lastActiveDoc && (selectProject(lastActiveDoc.project.id), setActiveDocumentId(lastActiveDoc.doc.id), setViewMode(ViewMode.WRITER))} className={`col-span-1 md:col-span-2 relative overflow-hidden rounded-[2.5rem] p-6 sm:p-8 flex flex-col justify-between group min-h-[180px] sm:min-h-[220px] transition-all cursor-pointer ${lastActiveDoc ? 'bg-white dark:bg-zinc-900 border border-paper-200 dark:border-zinc-800 hover:shadow-xl' : 'bg-paper-100 dark:bg-zinc-800 cursor-default opacity-50'}`}>
              <div className="flex justify-between items-start relative z-10"><Zap className="w-6 h-6 text-brand-600" />{lastActiveDoc && <span className="px-3 py-1 bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 rounded-full text-[10px] font-black uppercase">最近编辑</span>}</div>
              <div className="relative z-10 mt-6"><h3 className="text-2xl font-black font-serif mb-2 line-clamp-1 text-ink-900 dark:text-zinc-100">{lastActiveDoc ? lastActiveDoc.doc.title : '暂无最近记录'}</h3><p className="text-sm font-medium text-ink-500 line-clamp-1 uppercase">{lastActiveDoc ? lastActiveDoc.project.title : '开始你的第一步'}</p></div>
           </div>
@@ -672,31 +672,31 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onCreateNew 
           {/* New Points Card */}
           <div className="col-span-1"><PointsCard /></div>
           
-          <div className="col-span-1 h-56"><Achievements totalWords={totalWords} /></div>
-          <div className="col-span-1 h-56"><QuickShortcuts hasProject={!!projects.length} onAction={(m) => { if(projects.length > 0) { if(!activeProjectId) selectProject(projects[0].id); setViewMode(m); } }} /></div>
-          <div className="col-span-1 h-56"><InspirationCard /></div>
-          <div className="col-span-1 h-56 bg-white dark:bg-zinc-900 border border-paper-200 dark:border-zinc-800 p-6 rounded-[2.5rem] shadow-sm flex flex-col relative group">
+          <div className="col-span-1 h-auto sm:h-56"><Achievements totalWords={totalWords} /></div>
+          <div className="col-span-1 h-auto sm:h-56"><QuickShortcuts hasProject={!!projects.length} onAction={(m) => { if(projects.length > 0) { if(!activeProjectId) selectProject(projects[0].id); setViewMode(m); } }} /></div>
+          <div className="col-span-1 h-auto sm:h-56"><InspirationCard /></div>
+          <div className="col-span-1 h-auto sm:h-56 bg-white dark:bg-zinc-900 border border-paper-200 dark:border-zinc-800 p-6 rounded-[2.5rem] shadow-sm flex flex-col relative group">
              <div className="flex items-center gap-2 mb-3"><Lightbulb className="w-4 h-4 text-amber-500" /><h4 className="text-[10px] font-black uppercase tracking-widest text-ink-900 dark:text-zinc-100">灵感闪念</h4></div>
              <textarea value={quickNote} onChange={e => setQuickNote(e.target.value)} placeholder="随手记下灵感..." className="flex-1 bg-paper-50 dark:bg-zinc-950/50 rounded-2xl p-4 text-xs font-medium text-ink-800 dark:text-zinc-300 resize-none border-none outline-none focus:ring-1 focus:ring-amber-200 transition-all custom-scrollbar" />
           </div>
-          <div className="col-span-1 h-56"><QuestBoard /></div>
-          <div className="col-span-1 h-56"><RealHeatmap projects={projects} /></div>
+          <div className="col-span-1 h-auto sm:h-56"><QuestBoard /></div>
+          <div className="col-span-1 h-auto sm:h-56"><RealHeatmap projects={projects} /></div>
         </div>
 
         {/* Existing Project List ... */}
-        <div className="space-y-6 pt-6">
-           <div className="flex items-center justify-between border-b border-paper-200 dark:border-zinc-800 pb-4">
-              <h2 className="text-xl font-black text-ink-900 dark:text-zinc-100 flex items-center gap-3"><Book className="w-5 h-5" /> 我的书架 <span className="text-xs bg-brand-500 text-white px-2 py-0.5 rounded-full">{projects.length}</span></h2>
-              <button 
-                onClick={hasAIAccess ? onCreateNew : () => alert('AI 订阅已过期，无法使用智能孵化功能。请使用下方“新建空白项目”进行手动创作。')} 
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-lg active:scale-95 ${hasAIAccess ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-black dark:hover:bg-white' : 'bg-gray-200 dark:bg-zinc-800 text-gray-400 cursor-not-allowed'}`}
-              >
-                {hasAIAccess ? <Sparkles className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />} 
-                AI 孵化新宇宙
-              </button>
-           </div>
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
-              <button onClick={() => setShowManualCreate(true)} className="group flex flex-col items-center justify-center p-8 border-2 border-dashed border-paper-200 dark:border-zinc-800 rounded-[2.5rem] hover:border-brand-500 hover:bg-brand-50/10 min-h-[280px] transition-all"><div className="p-5 bg-paper-50 dark:bg-zinc-900 rounded-full text-ink-300 group-hover:bg-brand-500 group-hover:text-white transition-all mb-4 border border-paper-100 dark:border-zinc-800 shadow-inner"><Plus className="w-8 h-8" /></div><span className="text-sm font-black text-ink-400 uppercase tracking-widest">新建空白项目</span></button>
+         <div className="space-y-6 pt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-paper-200 dark:border-zinc-800 pb-4 gap-3">
+               <h2 className="text-xl font-black text-ink-900 dark:text-zinc-100 flex items-center gap-3"><Book className="w-5 h-5" /> 我的书架 <span className="text-xs bg-brand-500 text-white px-2 py-0.5 rounded-full">{projects.length}</span></h2>
+               <button 
+                 onClick={hasAIAccess ? onCreateNew : () => alert('AI 订阅已过期，无法使用智能孵化功能。请使用下方“新建空白项目”进行手动创作。')} 
+                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-lg active:scale-95 ${hasAIAccess ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-black dark:hover:bg-white' : 'bg-gray-200 dark:bg-zinc-800 text-gray-400 cursor-not-allowed'}`}
+               >
+                 {hasAIAccess ? <Sparkles className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />} 
+                 AI 孵化新宇宙
+               </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 pb-16 sm:pb-20">
+               <button onClick={() => setShowManualCreate(true)} className="group flex flex-col items-center justify-center p-8 border-2 border-dashed border-paper-200 dark:border-zinc-800 rounded-[2.5rem] hover:border-brand-500 hover:bg-brand-50/10 min-h-[280px] transition-all"><div className="p-5 bg-paper-50 dark:bg-zinc-900 rounded-full text-ink-300 group-hover:bg-brand-500 group-hover:text-white transition-all mb-4 border border-paper-100 dark:border-zinc-800 shadow-inner"><Plus className="w-8 h-8" /></div><span className="text-sm font-black text-ink-400 uppercase tracking-widest">新建空白项目</span></button>
                {projects.map(project => (
                  <div key={project.id} onClick={() => selectProject(project.id)} className="group relative bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-paper-200 dark:border-zinc-800 shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col justify-between min-h-[280px] overflow-hidden cursor-pointer">
                     <div className="absolute -right-10 -top-10 w-40 h-40 bg-gradient-to-br from-brand-50 to-transparent dark:from-brand-900/10 rounded-full blur-3xl group-hover:scale-150 transition-transform pointer-events-none" />

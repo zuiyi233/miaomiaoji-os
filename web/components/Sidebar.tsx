@@ -40,11 +40,11 @@ export const Sidebar: React.FC = () => {
     }`;
 
   return (
-    <div className="w-64 h-full bg-paper-50 dark:bg-zinc-900 border-r border-paper-200 dark:border-zinc-800 flex flex-col flex-shrink-0 relative transition-colors duration-300">
+    <div className="w-full md:w-64 h-full bg-paper-50 dark:bg-zinc-900 border-r border-paper-200 dark:border-zinc-800 flex flex-col flex-shrink-0 relative transition-colors duration-300">
       {showGuide && <UserGuide onClose={() => setShowGuide(false)} />}
       
       {/* Project Title Section */}
-      <div className="p-5 border-b border-paper-200 dark:border-zinc-800">
+      <div className="p-4 sm:p-5 border-b border-paper-200 dark:border-zinc-800">
         {project && (
           <>
             <button 
@@ -67,9 +67,9 @@ export const Sidebar: React.FC = () => {
           
           {project && (
             <>
-              <button onClick={() => navigateTo('/writer', ViewMode.WRITER)} className={navItemClass(viewMode === ViewMode.WRITER)}>
-                <FileText className="w-4 h-4 mr-3" /> 写作手稿
-              </button>
+               <button onClick={() => navigateTo('/writer', ViewMode.WRITER)} className={navItemClass(viewMode === ViewMode.WRITER)}>
+                 <FileText className="w-4 h-4 mr-3" /> 写作手稿
+               </button>
               <button onClick={() => navigateTo('/planboard', ViewMode.PLANBOARD)} className={navItemClass(viewMode === ViewMode.PLANBOARD)}>
                 <Layout className="w-4 h-4 mr-3" /> 情节大纲
               </button>
@@ -174,7 +174,7 @@ export const Sidebar: React.FC = () => {
         )}
       </div>
 
-      <div className="p-4 border-t border-paper-200 dark:border-zinc-800 space-y-1 bg-paper-50 dark:bg-zinc-900">
+       <div className="p-4 border-t border-paper-200 dark:border-zinc-800 space-y-1 bg-paper-50 dark:bg-zinc-900">
         <button 
           onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
           className="w-full flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest bg-paper-100 dark:bg-zinc-800 text-ink-600 dark:text-zinc-400 rounded-lg border border-paper-200 dark:border-zinc-700 hover:bg-paper-200 dark:hover:bg-zinc-700 transition-all mb-2"

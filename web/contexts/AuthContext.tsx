@@ -115,6 +115,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const hasAIAccess = useMemo(() => {
     if (!user) return false;
+    if (user.role === 'admin') return true;
     if (!user.aiAccessUntil) return false;
     return user.aiAccessUntil > Date.now();
   }, [user]);

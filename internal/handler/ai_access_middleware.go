@@ -26,7 +26,7 @@ func RequireAIAccess(userService service.UserService) gin.HandlerFunc {
 			return
 		}
 
-		if user.AIAccessUntil == nil || user.AIAccessUntil.Before(time.Now()) {
+		if user.Role != "admin" && (user.AIAccessUntil == nil || user.AIAccessUntil.Before(time.Now())) {
 			response.Fail(c, errors.CodeForbidden, "AI权限已过期")
 			c.Abort()
 			return

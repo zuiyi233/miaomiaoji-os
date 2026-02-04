@@ -136,7 +136,7 @@ export const AgentWriter: React.FC<AgentWriterProps> = ({ onClose, onAppendConte
   };
 
   return (
-    <div className={`fixed bottom-4 right-4 z-50 bg-ink-900/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-white/10 text-white rounded-3xl shadow-2xl transition-all duration-500 flex flex-col overflow-hidden ${isExpanded ? 'w-[600px] h-[80vh]' : 'w-[400px] h-[500px]'}`}>
+    <div className={`fixed bottom-4 right-4 z-50 bg-ink-900/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-white/10 text-white rounded-3xl shadow-2xl transition-all duration-500 flex flex-col overflow-hidden ${isExpanded ? 'w-[calc(100vw-2rem)] max-w-[600px] h-[calc(100vh-2rem)] max-h-[80vh]' : 'w-[calc(100vw-2rem)] max-w-[400px] h-[calc(100vh-2rem)] max-h-[500px]'}`}>
       
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">

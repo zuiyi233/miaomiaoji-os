@@ -18,7 +18,7 @@ import { EntityCard } from './EntityCard';
 type SortOption = 'title' | 'id' | 'importance';
 
 export const WorldBible: React.FC = () => {
-  const { project, addEntity, updateEntity, deleteEntity, updateNovelDetails, setViewMode } = useProject();
+  const { project, addEntity, updateEntity, deleteEntity, updateNovelDetails, setViewMode, selectSession } = useProject();
   const { hasAIAccess } = useAuth();
   const { confirm } = useConfirm();
   
@@ -137,6 +137,12 @@ export const WorldBible: React.FC = () => {
         path: payload.path,
         body: payload.body,
       });
+      if (result.session?.id) {
+        selectSession(String(result.session.id));
+        setViewMode(ViewMode.WORKFLOW_DETAIL);
+      } else {
+        setViewMode(ViewMode.WORKFLOWS);
+      }
       try {
         draft = JSON.parse(result.content || '{}');
       } catch {
@@ -221,11 +227,11 @@ export const WorldBible: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 h-full bg-paper-50 dark:bg-zinc-950 bg-dot-pattern flex overflow-hidden relative transition-colors duration-300">
+    <div className="flex-1 h-full bg-paper-50 dark:bg-zinc-950 bg-dot-pattern flex flex-col lg:flex-row overflow-hidden relative transition-colors duration-300">
       {showGraph && <GraphVisualizer project={project} onClose={() => setShowGraph(false)} />}
       
       {/* 侧边分类栏 */}
-      <div className="w-64 border-r border-paper-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-6 flex flex-col gap-8 transition-colors">
+      <div className="w-full lg:w-64 border-b lg:border-b-0 lg:border-r border-paper-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-6 flex flex-col gap-8 transition-colors">
         <div>
           <h3 className="text-[10px] font-black text-ink-400 dark:text-zinc-500 uppercase tracking-[0.3em] mb-6 px-2">档案分类索引</h3>
           <nav className="space-y-1.5">
@@ -256,10 +262,10 @@ export const WorldBible: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-12 scroll-smooth">
+      <div className="flex-1 overflow-y-auto p-6 sm:p-8 lg:p-12 scroll-smooth">
         <header className="mb-12">
-          <div className="flex justify-between items-start mb-10 overflow-hidden">
-            <div className="space-y-1 max-w-[40%]">
+          <div className="flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
+            <div className="space-y-1 w-full lg:max-w-[40%]">
               <h1 className="text-4xl font-black text-ink-900 dark:text-zinc-100 tracking-tight font-serif italic truncate">设定集 (Bible)</h1>
               <div className="flex items-center gap-2 mt-2">
                  <button onClick={() => setViewMode(ViewMode.SETTINGS)} className="px-2 py-1 bg-paper-100 dark:bg-zinc-800 rounded-lg text-[10px] font-black text-brand-600 dark:text-brand-400 hover:bg-brand-50 transition-colors flex items-center gap-1 border border-paper-200 shrink truncate">
@@ -267,13 +273,23 @@ export const WorldBible: React.FC = () => {
                  </button>
               </div>
             </div>
-            <div className="flex gap-3 max-w-[40%] justify-end shrink-0">
-              {hasAIAccess && (
-                <button onClick={handleRefineCore} disabled={isRefiningCore} className="hidden sm:flex items-center gap-2 px-5 py-3.5 bg-brand-50 dark:bg-zinc-800 text-brand-700 dark:text-brand-400 border border-brand-100 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-brand-500 hover:text-white transition-all">
-                  {isRefiningCore ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} 
-                  精修核心
-                </button>
-              )}
+            <div className="flex flex-wrap gap-3 w-full lg:max-w-[40%] justify-start lg:justify-end">
+              <button
+                onClick={hasAIAccess ? () => setIsAICreating(activeCategory === 'all' ? 'character' : activeCategory) : () => alert('AI 订阅已过期，无法使用智能孵化功能。')}
+                className="flex items-center gap-2 px-5 py-3.5 bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border border-ink-900 dark:border-zinc-100 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-black dark:hover:bg-white transition-all"
+                title={hasAIAccess ? 'AI 孵化新设定' : 'AI 权限不足'}
+              >
+                <Wand2 className="w-4 h-4" />
+                AI 孵化
+              </button>
+              <button
+                onClick={hasAIAccess ? handleRefineCore : () => alert('AI 订阅已过期，无法使用智能孵化功能。')}
+                disabled={isRefiningCore}
+                className="flex items-center gap-2 px-5 py-3.5 bg-brand-50 dark:bg-zinc-800 text-brand-700 dark:text-brand-400 border border-brand-100 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-brand-500 hover:text-white transition-all disabled:opacity-60"
+              >
+                {isRefiningCore ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} 
+                精修核心
+              </button>
               <button onClick={() => setShowGraph(true)} className="flex items-center gap-2 px-5 py-3.5 bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl hover:bg-black transition-all">
                 <Activity className="w-4 h-4" /> 图谱
               </button>

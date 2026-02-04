@@ -82,8 +82,8 @@ export const WorkflowSessions: React.FC<WorkflowSessionsProps> = ({ onSelect }) 
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col">
-      <div className="px-8 pt-8">
-        <div className="flex items-center gap-3">
+      <div className="px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="p-3 bg-brand-600 dark:bg-brand-500 rounded-2xl shadow-lg shadow-brand-100 dark:shadow-black/20">
             <Layers className="w-5 h-5 text-white" />
           </div>
@@ -94,9 +94,9 @@ export const WorkflowSessions: React.FC<WorkflowSessionsProps> = ({ onSelect }) 
         </div>
       </div>
 
-      <div className="px-8 py-6 flex-1 overflow-y-auto custom-scrollbar">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 flex-1 overflow-y-auto custom-scrollbar">
         <div className="bg-white dark:bg-zinc-900 rounded-[2rem] border border-paper-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-paper-100 dark:border-zinc-800 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-paper-100 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-ink-400 dark:text-zinc-500">
               <Activity className="w-3.5 h-3.5" /> 最近会话
             </div>
@@ -107,13 +107,13 @@ export const WorkflowSessions: React.FC<WorkflowSessionsProps> = ({ onSelect }) 
 
           <div className="divide-y divide-paper-100 dark:divide-zinc-800">
             {isLoading ? (
-              <div className="px-6 py-12 text-center text-sm text-ink-400 dark:text-zinc-500 flex items-center justify-center gap-2">
+              <div className="px-4 sm:px-6 py-12 text-center text-sm text-ink-400 dark:text-zinc-500 flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" /> 加载会话中
               </div>
             ) : error ? (
-              <div className="px-6 py-12 text-center text-sm text-rose-500">{error}</div>
+              <div className="px-4 sm:px-6 py-12 text-center text-sm text-rose-500">{error}</div>
             ) : items.length === 0 ? (
-              <div className="px-6 py-12 text-center text-sm text-ink-400 dark:text-zinc-500">暂无会话记录</div>
+              <div className="px-4 sm:px-6 py-12 text-center text-sm text-ink-400 dark:text-zinc-500">暂无会话记录</div>
             ) : (
               items.map((session) => {
                 const meta = STATUS_META[session.status];
@@ -121,11 +121,11 @@ export const WorkflowSessions: React.FC<WorkflowSessionsProps> = ({ onSelect }) 
                   <button
                     key={session.id}
                     onClick={() => onSelect(session.id)}
-                    className="w-full flex items-center justify-between px-6 py-4 hover:bg-paper-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
+                    className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-6 py-4 hover:bg-paper-50 dark:hover:bg-zinc-800/50 transition-colors text-left"
                   >
                     <div className="space-y-1">
-                      <div className="flex items-center gap-3">
-                        <h3 className="text-base font-bold text-ink-900 dark:text-zinc-100">{session.title}</h3>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h3 className="text-base font-bold text-ink-900 dark:text-zinc-100 break-all">{session.title}</h3>
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${meta.className}`}>
                           {meta.icon}
                           {meta.label}

@@ -260,22 +260,22 @@ const LayoutContent: React.FC = () => {
     return <NovelWizard onCancel={() => setIsCreating(false)} />;
   }
 
-  return (
+   return (
     <div className="flex h-screen w-full bg-paper-50 dark:bg-zinc-950 text-ink-900 dark:text-zinc-100 overflow-hidden font-sans transition-colors duration-300">
       {showSidebar && (
-        <div className="hidden md:block h-full shrink-0">
+        <div className="hidden lg:block h-full shrink-0">
           <Sidebar />
         </div>
       )}
 
-      {showSidebar && mobileMenuOpen && (
-        <div className="fixed inset-0 z-[150] md:hidden flex">
-           <div className="fixed inset-0 bg-black/20 dark:bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
-           <div className="relative w-64 h-full bg-white dark:bg-zinc-900 shadow-xl animate-in slide-in-from-left duration-300">
-              <Sidebar />
-           </div>
-        </div>
-      )}
+       {showSidebar && mobileMenuOpen && (
+         <div className="fixed inset-0 z-[150] lg:hidden flex">
+            <div className="fixed inset-0 bg-black/20 dark:bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}></div>
+            <div className="relative w-[82vw] max-w-xs h-full bg-white dark:bg-zinc-900 shadow-xl animate-in slide-in-from-left duration-300">
+               <Sidebar />
+            </div>
+         </div>
+       )}
 
       <main className="flex-1 flex flex-col min-w-0 relative">
         {/* 顶部系统托盘 - 移至右上角避免遮挡 */}
@@ -390,11 +390,11 @@ const LayoutContent: React.FC = () => {
         )}
 
         {showSidebar && (
-          <div className="md:hidden h-12 border-b border-paper-200 dark:border-zinc-800 flex items-center px-4 bg-paper-50 dark:bg-zinc-900 justify-between shrink-0">
+          <div className="lg:hidden h-12 border-b border-paper-200 dark:border-zinc-800 flex items-center px-4 bg-paper-50 dark:bg-zinc-900 justify-between shrink-0">
               <button onClick={() => setMobileMenuOpen(true)} className="p-2 -ml-2 text-ink-500 dark:text-zinc-400">
                 <Menu className="w-5 h-5" />
               </button>
-              <span className="text-xs font-bold text-ink-900 dark:text-zinc-100">{project?.title || 'Novel Agent OS'}</span>
+              <span className="text-xs font-bold text-ink-900 dark:text-zinc-100 truncate max-w-[60%]">{project?.title || 'Novel Agent OS'}</span>
               <div className="w-8"></div>
           </div>
         )}

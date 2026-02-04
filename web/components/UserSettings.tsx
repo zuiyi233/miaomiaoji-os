@@ -38,6 +38,7 @@ export const UserSettings: React.FC = () => {
   const [backupList, setBackupList] = useState<Array<{ id: number; file_name: string; created_at: string; size_bytes: number }>>([]);
   const [backupTotal, setBackupTotal] = useState(0);
   const [backupLoading, setBackupLoading] = useState(false);
+  const [showCloudSyncTip, setShowCloudSyncTip] = useState(false);
   const { confirm } = useConfirm();
   
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');

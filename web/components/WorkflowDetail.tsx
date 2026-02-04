@@ -98,14 +98,14 @@ export const WorkflowDetail: React.FC<WorkflowDetailProps> = ({ sessionId, onBac
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col">
-      <div className="px-8 pt-8">
+      <div className="px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-ink-400 dark:text-zinc-500 hover:text-ink-900 dark:hover:text-zinc-100 transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> 返回会话列表
         </button>
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="p-3 bg-ink-900 dark:bg-zinc-100 rounded-2xl">
             <Terminal className="w-5 h-5 text-white dark:text-zinc-900" />
           </div>
@@ -115,13 +115,13 @@ export const WorkflowDetail: React.FC<WorkflowDetailProps> = ({ sessionId, onBac
               Session ID · {resolvedSessionId || '--'}
             </p>
           </div>
-          <span className={`ml-auto inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${stateMeta.className}`}>
+          <span className={`sm:ml-auto inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${stateMeta.className}`}>
             <Activity className="w-3 h-3" /> {stateMeta.label}
           </span>
         </div>
       </div>
 
-      <div className="px-8 py-6 flex-1 overflow-hidden grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 flex-1 overflow-hidden grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
         <div className="bg-white dark:bg-zinc-900 rounded-[2rem] border border-paper-200 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col">
           <div className="px-6 py-4 border-b border-paper-100 dark:border-zinc-800 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-ink-400 dark:text-zinc-500">
             <ListChecks className="w-3.5 h-3.5" /> 步骤列表

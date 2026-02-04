@@ -1,7 +1,7 @@
 import { apiRequest } from './apiClient';
 import type { Project } from '../types';
 
-type ProjectDTO = {
+export type ProjectDTO = {
   id: number;
   external_id?: string;
   title: string;
@@ -24,6 +24,8 @@ type SnapshotPayload = {
   ai_settings?: Record<string, any>;
   snapshot: Record<string, any>;
 };
+
+export type ProjectListItemDTO = ProjectDTO;
 
 type ProjectListResponse = {
   list: ProjectDTO[];

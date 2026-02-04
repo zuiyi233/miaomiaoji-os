@@ -274,7 +274,12 @@ export const AIAssistant: React.FC = () => {
   if (!isAISidebarOpen) return null;
 
   return (
-    <div className="w-96 bg-white dark:bg-zinc-900 border-l border-gray-200 dark:border-zinc-800 flex flex-col h-full shadow-2xl relative z-30 transition-all animate-in slide-in-from-right duration-500 pt-14">
+    <>
+      <div
+        className="fixed inset-0 z-[50] bg-black/30 dark:bg-black/60 backdrop-blur-sm lg:hidden"
+        onClick={toggleAISidebar}
+      ></div>
+      <div className="fixed inset-y-0 right-0 z-[60] w-[min(100vw,24rem)] bg-white dark:bg-zinc-900 border-l border-gray-200 dark:border-zinc-800 flex flex-col h-full shadow-2xl relative transition-all animate-in slide-in-from-right duration-500 pt-14 lg:static lg:z-30 lg:w-96">
       {/* 头部控制栏 - 使用吸顶且高度适配 */}
       <div className="h-14 border-b border-gray-100 dark:border-zinc-800 flex items-center justify-between px-4 bg-white dark:bg-zinc-900 absolute top-0 left-0 right-0 z-40">
         <div className="flex items-center gap-4">
@@ -728,6 +733,7 @@ export const AIAssistant: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 };
