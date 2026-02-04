@@ -629,10 +629,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         updateDefaultAISettings,
         refreshModels,
         clearCache,
-        backupProject: () => {
-          if (!user || !activeProject) return;
-          backupProjectSnapshotApi(toSnapshotPayload(activeProject, activeProject.id)).catch(() => {});
-        },
         updateNovelDetails,
         addVolume,
         updateVolume,

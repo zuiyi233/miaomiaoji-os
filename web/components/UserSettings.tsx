@@ -915,4 +915,3 @@ export const UserSettings: React.FC = () => {
     </div>
   );
 };
-  const [showCloudSyncTip, setShowCloudSyncTip] = useState(false);

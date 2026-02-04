@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Sidebar } from './Sidebar';
 import { Editor } from './Editor';
 import { KanbanBoard } from './KanbanBoard';
@@ -27,11 +27,39 @@ const LayoutContent: React.FC = () => {
   const { user, isLoading } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingToolbar, setIsDraggingToolbar] = useState(false);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
+  const TOOLBAR_STORAGE_KEY = 'layout.floatingToolbar.position';
+  const TOOLBAR_PADDING = 16;
   const navigate = useNavigate();
   const location = useLocation();
   const isSettingsView = viewMode === ViewMode.SETTINGS;
   const showSidebar = !!activeProjectId && !isSettingsView;
   const isEditorPage = !!activeProjectId && (location.pathname === '/' || location.pathname === '/writer');
+
+  const clampToolbarPosition = useCallback((position: { x: number; y: number }) => {
+    const rect = toolbarRef.current?.getBoundingClientRect();
+    if (!rect) return position;
+    const maxX = Math.max(TOOLBAR_PADDING, window.innerWidth - rect.width - TOOLBAR_PADDING);
+    const maxY = Math.max(TOOLBAR_PADDING, window.innerHeight - rect.height - TOOLBAR_PADDING);
+    return {
+      x: Math.min(Math.max(position.x, TOOLBAR_PADDING), maxX),
+      y: Math.min(Math.max(position.y, TOOLBAR_PADDING), maxY),
+    };
+  }, []);
+
+  const getDefaultToolbarPosition = useCallback(() => {
+    const rect = toolbarRef.current?.getBoundingClientRect();
+    if (!rect) {
+      return { x: TOOLBAR_PADDING, y: TOOLBAR_PADDING };
+    }
+    return clampToolbarPosition({
+      x: window.innerWidth - rect.width - TOOLBAR_PADDING,
+      y: TOOLBAR_PADDING,
+    });
+  }, [clampToolbarPosition]);
 
   // Sync theme with DOM
   useEffect(() => {
@@ -41,6 +69,101 @@ const LayoutContent: React.FC = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [theme]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(TOOLBAR_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { x: number; y: number } | null;
+      if (!parsed || typeof parsed.x !== 'number' || typeof parsed.y !== 'number') return;
+      setToolbarPosition(parsed);
+    } catch {
+      return;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!toolbarRef.current) return;
+    if (!toolbarPosition) {
+      setToolbarPosition(getDefaultToolbarPosition());
+      return;
+    }
+    const clamped = clampToolbarPosition(toolbarPosition);
+    if (clamped.x !== toolbarPosition.x || clamped.y !== toolbarPosition.y) {
+      setToolbarPosition(clamped);
+    }
+  }, [toolbarPosition, clampToolbarPosition, getDefaultToolbarPosition]);
+
+  useEffect(() => {
+    if (!toolbarPosition) return;
+    localStorage.setItem(TOOLBAR_STORAGE_KEY, JSON.stringify(toolbarPosition));
+  }, [toolbarPosition]);
+
+  useEffect(() => {
+    if (!isDraggingToolbar) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!dragOffsetRef.current) return;
+      const next = clampToolbarPosition({
+        x: event.clientX - dragOffsetRef.current.x,
+        y: event.clientY - dragOffsetRef.current.y,
+      });
+      setToolbarPosition(next);
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!dragOffsetRef.current) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+      const next = clampToolbarPosition({
+        x: touch.clientX - dragOffsetRef.current.x,
+        y: touch.clientY - dragOffsetRef.current.y,
+      });
+      setToolbarPosition(next);
+      event.preventDefault();
+    };
+
+    const stopDragging = () => {
+      setIsDraggingToolbar(false);
+      dragOffsetRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', stopDragging);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', stopDragging);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', stopDragging);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', stopDragging);
+    };
+  }, [isDraggingToolbar, clampToolbarPosition]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (!toolbarPosition) return;
+      const clamped = clampToolbarPosition(toolbarPosition);
+      if (clamped.x !== toolbarPosition.x || clamped.y !== toolbarPosition.y) {
+        setToolbarPosition(clamped);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [toolbarPosition, clampToolbarPosition]);
+
+  const shouldStartToolbarDrag = (target: EventTarget | null) => {
+    if (!target || !(target instanceof HTMLElement)) return true;
+    return !target.closest('button');
+  };
+
+  const startToolbarDrag = (clientX: number, clientY: number) => {
+    const rect = toolbarRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragOffsetRef.current = { x: clientX - rect.left, y: clientY - rect.top };
+    setIsDraggingToolbar(true);
+  };
 
   const resolveViewMode = (path: string): ViewMode | null => {
     if (path.startsWith('/workflows/')) return ViewMode.WORKFLOW_DETAIL;
@@ -144,15 +267,32 @@ const LayoutContent: React.FC = () => {
       )}
 
       <main className="flex-1 flex flex-col min-w-0 relative">
-        {/* 顶部系统托盘 - 不遮挡主内容 */}
+        {/* 顶部系统托盘 - 移至右上角避免遮挡 */}
         <div
-          className={`absolute z-[200] pointer-events-none flex px-4 ${
-            isEditorPage
-              ? 'top-[76px] right-3 left-auto translate-x-0 w-auto max-w-none justify-end px-0'
-              : 'top-4 right-6 left-auto translate-x-0 w-auto max-w-none justify-end px-0'
+          className={`fixed z-[100] pointer-events-none flex ${
+            toolbarPosition ? '' : 'top-4 right-4'
           }`}
+          style={
+            toolbarPosition
+              ? { left: toolbarPosition.x, top: toolbarPosition.y }
+              : undefined
+          }
         >
-          <div className={`flex items-center gap-1 p-1.5 bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl border border-paper-200 dark:border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] pointer-events-auto transition-all duration-500 ${viewMode === ViewMode.WRITER ? 'opacity-40 hover:opacity-100' : 'opacity-100'}`}>
+          <div
+            ref={toolbarRef}
+            onMouseDown={(event) => {
+              if (event.button !== 0) return;
+              if (!shouldStartToolbarDrag(event.target)) return;
+              startToolbarDrag(event.clientX, event.clientY);
+            }}
+            onTouchStart={(event) => {
+              if (!shouldStartToolbarDrag(event.target)) return;
+              const touch = event.touches[0];
+              if (!touch) return;
+              startToolbarDrag(touch.clientX, touch.clientY);
+            }}
+            className={`flex items-center gap-1 p-1.5 bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl border border-paper-200 dark:border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] pointer-events-auto transition-all duration-500 cursor-grab active:cursor-grabbing ${viewMode === ViewMode.WRITER ? 'opacity-40 hover:opacity-100' : 'opacity-100'}`}
+          >
              
              {/* 返回仪表盘按钮 (仅在进入项目后显示) */}
               {activeProjectId && (
