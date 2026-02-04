@@ -196,6 +196,187 @@
 
 ---
 
+## AI 接口
+
+### 获取模型列表
+- **URL**: `GET /api/v1/ai/models?provider=xxx`
+- **描述**: 获取指定供应商模型列表
+- **认证**: 是
+- **请求参数**:
+  - `provider` string 必填（如: gemini/openai/proxy/local）
+- **响应**:
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "models": [
+      { "id": "gemini-3-flash-preview", "name": "gemini-3-flash-preview", "provider": "gemini" }
+    ]
+  }
+}
+```
+
+### 更新供应商配置（管理员）
+- **URL**: `PUT /api/v1/ai/providers`
+- **描述**: 更新供应商 BaseURL 与 API Key
+- **认证**: 是（管理员）
+- **请求体**:
+```json
+{
+  "provider": "gemini",
+  "base_url": "https://generativelanguage.googleapis.com",
+  "api_key": "string"
+}
+```
+- **响应**:
+```json
+{
+  "code": 0,
+  "message": "success"
+}
+```
+
+### 获取供应商配置（管理员）
+- **URL**: `GET /api/v1/ai/providers?provider=xxx`
+- **描述**: 获取供应商配置（API Key 为脱敏值）
+- **认证**: 是（管理员）
+- **响应**:
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "provider": "gemini",
+    "base_url": "https://generativelanguage.googleapis.com",
+    "api_key": "abc***xyz"
+  }
+}
+```
+
+### 测试供应商连接（管理员）
+- **URL**: `POST /api/v1/ai/providers/test`
+- **描述**: 测试供应商连接是否可用
+- **认证**: 是（管理员）
+- **请求体**:
+```json
+{
+  "provider": "gemini"
+}
+```
+- **响应**: `success`
+
+### AI 代理请求
+- **URL**: `POST /api/v1/ai/proxy`
+- **描述**: 代理调用第三方模型接口
+- **认证**: 是（且需有效 AI 权限）
+- **请求体**:
+```json
+{
+  "provider": "gemini",
+  "path": "v1beta/models/gemini-3-flash-preview:generateContent",
+  "body": "{...}"
+}
+```
+- **响应**: 透传上游 JSON
+
+### AI 代理流式请求
+- **URL**: `POST /api/v1/ai/proxy/stream`
+- **描述**: 代理调用第三方模型流式接口
+- **认证**: 是（且需有效 AI 权限）
+- **请求体**:
+```json
+{
+  "provider": "openai",
+  "path": "v1/chat/completions",
+  "body": "{...}"
+}
+```
+- **响应**: `text/event-stream` 透传
+
+---
+
+## 兑换码接口
+
+### 兑换码验证
+- **URL**: `POST /api/v1/codes/redeem`
+- **描述**: 验证兑换码并更新 AI 权限
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "code": "XXXX-XXXX",
+  "device_id": "string"
+}
+```
+- **响应**:
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "code": "XXXX-XXXX",
+    "duration_days": 30,
+    "ai_access_until": "2026-02-04T02:00:00Z",
+    "used_count": 1,
+    "status": "active"
+  }
+}
+```
+
+### 获取兑换码列表（管理员）
+- **URL**: `GET /api/v1/codes?status=all&search=&page=1&size=20&sort=desc`
+- **描述**: 获取兑换码列表
+- **认证**: 是（管理员）
+- **响应**: 分页响应
+
+### 批量生成兑换码（管理员）
+- **URL**: `POST /api/v1/codes/generate`
+- **请求体**:
+```json
+{
+  "prefix": "VIP_",
+  "length": 8,
+  "count": 100,
+  "validity_days": 30,
+  "max_uses": 1,
+  "char_type": "alphanum",
+  "tags": ["campaign"],
+  "note": "2026春季活动",
+  "source": "admin"
+}
+```
+- **响应**:
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "list": [
+      { "code": "VIP_XXXX", "status": "active" }
+    ]
+  }
+}
+```
+
+### 批量更新兑换码（管理员）
+- **URL**: `PUT /api/v1/codes/batch`
+- **请求体**:
+```json
+{
+  "codes": ["VIP_XXXX"],
+  "action": "disable",
+  "value": 30
+}
+```
+- **响应**: `success`
+
+### 导出兑换码（管理员）
+- **URL**: `GET /api/v1/codes/export?status=all&search=&sort=desc`
+- **描述**: CSV 导出
+
+---
+
 ## 用户接口
 
 ### 获取当前用户信息
@@ -215,7 +396,8 @@
     "role": "user",
     "points": 0,
     "check_in_streak": 0,
-    "must_change_password": false
+    "must_change_password": false,
+    "ai_access_until": "2026-02-04T02:00:00Z"
   }
 }
 ```
@@ -279,6 +461,24 @@
     "points": 0,
     "check_in_streak": 0
   }
+}
+```
+
+### 用户心跳
+- **URL**: `POST /api/v1/users/heartbeat`
+- **描述**: 上报用户基础信息（不包含项目数据）
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "device_id": "string"
+}
+```
+- **响应**:
+```json
+{
+  "code": 0,
+  "message": "success"
 }
 ```
 

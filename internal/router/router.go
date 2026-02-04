@@ -57,6 +57,18 @@ func Setup() *gin.Engine {
 	templateService := service.NewTemplateService(templateRepo, projectRepo)
 	templateHandler := handler.NewTemplateHandler(templateService)
 
+	redemptionRepo := repository.NewRedemptionCodeRepository()
+	redemptionService := service.NewRedemptionCodeService(redemptionRepo)
+	redemptionHandler := handler.NewRedemptionCodeHandler(redemptionService, userService)
+
+	aiConfigRepo := repository.NewAIConfigRepository()
+	aiConfigService := service.NewAIConfigService(aiConfigRepo)
+	aiModelService := service.NewAIModelService(aiConfigRepo)
+	aiConfigHandler := handler.NewAIConfigHandler(aiConfigService)
+	aiModelHandler := handler.NewAIModelHandler(aiModelService)
+	aiProxyHandler := handler.NewAIProxyHandler(aiConfigService)
+	aiProxyStreamHandler := handler.NewAIProxyStreamHandler(aiConfigService)
+
 	pluginRepo := repository.NewPluginRepository(db)
 	pluginService := service.NewPluginService(pluginRepo)
 
@@ -123,10 +135,32 @@ func Setup() *gin.Engine {
 			users.PUT("/password", middleware.JWTAuth(), userHandler.ChangePassword)
 			users.POST("/check-in", middleware.JWTAuth(), userHandler.CheckIn)
 			users.GET("/points", middleware.JWTAuth(), userHandler.GetPoints)
+			users.POST("/heartbeat", middleware.JWTAuth(), userHandler.Heartbeat)
 
 			// 管理员路由
 			users.GET("/", middleware.JWTRequired("admin"), userHandler.ListUsers)
 			users.PUT("/:id/status", middleware.JWTRequired("admin"), userHandler.UpdateUserStatus)
+		}
+
+		// 兑换码路由
+		codes := v1.Group("/codes")
+		{
+			codes.POST("/redeem", middleware.JWTAuth(), redemptionHandler.Redeem)
+			codes.GET("", middleware.JWTRequired("admin"), redemptionHandler.ListCodes)
+			codes.POST("/generate", middleware.JWTRequired("admin"), redemptionHandler.GenerateCodes)
+			codes.PUT("/batch", middleware.JWTRequired("admin"), redemptionHandler.BatchUpdateCodes)
+			codes.GET("/export", middleware.JWTRequired("admin"), redemptionHandler.ExportCodes)
+		}
+
+		// AI 供应商与模型
+		ai := v1.Group("/ai")
+		{
+			ai.GET("/models", middleware.JWTAuth(), aiModelHandler.ListModels)
+			ai.PUT("/providers", middleware.JWTRequired("admin"), aiConfigHandler.UpdateProvider)
+			ai.GET("/providers", middleware.JWTRequired("admin"), aiConfigHandler.GetProvider)
+			ai.POST("/providers/test", middleware.JWTRequired("admin"), aiConfigHandler.TestProvider)
+			ai.POST("/proxy", middleware.JWTAuth(), handler.RequireAIAccess(userService), aiProxyHandler.Proxy)
+			ai.POST("/proxy/stream", middleware.JWTAuth(), handler.RequireAIAccess(userService), aiProxyStreamHandler.ProxyStream)
 		}
 
 		// 项目路由

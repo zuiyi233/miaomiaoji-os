@@ -15,8 +15,8 @@ export const AuthScreen: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) return;
-    if (!isLogin && !inviteCode) {
-      setError('请输入兑换码');
+    if (!isLogin && inviteCode && inviteCode.trim().length < 4) {
+      setError('兑换码格式不正确');
       return;
     }
 
@@ -87,7 +87,7 @@ export const AuthScreen: React.FC = () => {
 
             {!isLogin && (
               <div className="space-y-1 animate-in slide-in-from-top-2">
-                <label className="text-[10px] font-black text-brand-600 dark:text-brand-400 uppercase tracking-widest pl-2">邀请兑换码 (Required)</label>
+                <label className="text-[10px] font-black text-brand-600 dark:text-brand-400 uppercase tracking-widest pl-2">邀请兑换码 (Optional)</label>
                 <div className="relative">
                   <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500" />
                   <input 

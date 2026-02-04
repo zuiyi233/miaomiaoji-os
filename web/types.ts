@@ -24,6 +24,7 @@ export interface User {
   points: number;          // Current points balance
   lastCheckIn?: number;    // Timestamp of last daily check-in
   checkInStreak: number;   // Consecutive days checked in
+  aiAccessUntil?: number;
 }
 
 export type CodeStatus = 'active' | 'disabled' | 'expired' | 'depleted';
@@ -73,7 +74,7 @@ export interface SystemConfig {
 
 export type EntityType = 'character' | 'setting' | 'organization' | 'item' | 'magic' | 'event';
 
-export type AIProvider = 'gemini' | 'openai' | 'proxy' | 'local';
+export type AIProvider = 'gemini' | 'openai' | 'proxy' | 'local' | 'openrouter' | 'anthropic';
 
 export interface ModelInfo {
   id: string;

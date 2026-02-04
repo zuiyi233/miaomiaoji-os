@@ -13,9 +13,9 @@ import {
   AIPromptTemplate,
 } from '../types';
 import { fetchAvailableModels, clearModelCache, DEFAULT_AI_SETTINGS } from '../services/aiService';
+import { deleteProjectRecord, getProjectsByUser, upsertProject } from '../services/db';
 import { useAuth } from './AuthContext';
-import { fetchProjectsApi } from '../services/projectApi';
-import { mapProjectFromApi } from '../services/mappers';
+// 单机版本不从后端加载项目
 
 export type Theme = 'light' | 'dark';
 
@@ -89,7 +89,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     return saved ? JSON.parse(saved) : DEFAULT_AI_SETTINGS;
   });
 
-  // Phase4：改为从后端拉取项目列表，避免 localStorage mock
+  // 本地单机：从本地数据库加载项目
   useEffect(() => {
     const load = async () => {
       if (!user) {
@@ -99,9 +99,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
 
       try {
-        const data = await fetchProjectsApi(1, 50);
-        const mapped = (data.list || []).map(mapProjectFromApi);
-        setProjects(mapped);
+        const localProjects = await getProjectsByUser(String(user.id));
+        setProjects(localProjects);
       } catch {
         setProjects([]);
       }
@@ -151,7 +150,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // Phase4：仅用于本地临时创建（不落后端）。联调闭环不依赖创建。
   const createProject = (newProject: Project) => {
-    setProjects((prev) => [...prev, newProject]);
+    setProjects((prev) => {
+      const next = [...prev, newProject];
+      if (user) {
+        upsertProject(String(user.id), newProject).catch(() => {});
+      }
+      return next;
+    });
     setActiveProjectId(newProject.id);
     setPreviousViewMode(null);
   };
@@ -168,7 +173,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const deleteProject = (projectId: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    setProjects((prev) => {
+      const next = prev.filter((p) => p.id !== projectId);
+      if (user) {
+        deleteProjectRecord(String(user.id), projectId).catch(() => {});
+      }
+      return next;
+    });
     if (activeProjectId === projectId) setActiveProjectId(null);
   };
 
@@ -184,14 +195,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const updateActiveProject = (updater: (p: Project) => Project) => {
     if (!activeProjectId) return;
-    setProjects((prev) =>
-      prev.map((p) => {
+    setProjects((prev) => {
+      const next = prev.map((p) => {
         if (p.id === activeProjectId) {
-          return updater(p);
+          const updated = updater(p);
+          if (user) {
+            upsertProject(String(user.id), updated).catch(() => {});
+          }
+          return updated;
         }
         return p;
-      })
-    );
+      });
+      return next;
+    });
   };
 
   const refreshModels = async (settings?: AISettings) => {
@@ -206,10 +222,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const updateAISettings = (settings: Partial<AISettings>) => {
     updateActiveProject((p) => ({ ...p, aiSettings: { ...p.aiSettings, ...settings } }));
+    refreshModels({ ...activeProject?.aiSettings, ...settings } as AISettings).catch(() => {});
   };
 
   const updateDefaultAISettings = (settings: Partial<AISettings>) => {
     setDefaultAISettings((prev) => ({ ...prev, ...settings }));
+    refreshModels({ ...defaultAISettings, ...settings } as AISettings).catch(() => {});
   };
 
   const updateNovelDetails = (details: Partial<Project>) => {

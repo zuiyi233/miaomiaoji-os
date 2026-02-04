@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { User, SystemConfig, RedemptionCode, CodeGenerationConfig } from '../types';
-import { getToken, setToken } from '../services/apiClient';
+import { apiRequest, getToken, setToken } from '../services/apiClient';
 import { loginApi, logoutApi, registerApi } from '../services/authApi';
 import { fetchProfileApi } from '../services/userApi';
+import { batchUpdateCodesApi, fetchCodesApi, generateCodesApi, getExportCodesUrl, redeemCodeApi } from '../services/redemptionApi';
 
 interface AuthContextType {
   user: User | null;
@@ -24,6 +25,7 @@ interface AuthContextType {
     config: CodeGenerationConfig & { charType?: 'alphanum' | 'num' | 'alpha'; creatorOverride?: string }
   ) => string[];
   batchUpdateCodes: (codes: string[], action: 'delete' | 'disable' | 'enable' | 'renew', value?: any) => void;
+  fetchCodes: (page: number, size: number, status: string, search: string, sort: string) => Promise<void>;
   updateSystemConfig: (config: Partial<SystemConfig>) => void;
   generateInviteCode: (days: number, count?: number) => void;
   deleteInviteCode: (code: string) => void;
@@ -60,6 +62,7 @@ const getOrCreateDeviceId = (): string => {
 };
 
 function mapUserFromProfile(profile: any): User {
+  const aiAccessUntil = profile.ai_access_until ? Date.parse(profile.ai_access_until) : 0;
   return {
     id: String(profile.id),
     username: profile.username || 'unknown',
@@ -68,6 +71,7 @@ function mapUserFromProfile(profile: any): User {
     points: Number(profile.points || 0),
     checkInStreak: Number(profile.check_in_streak || 0),
     lastCheckIn: 0,
+    aiAccessUntil: aiAccessUntil > 0 ? aiAccessUntil : undefined,
   };
 }
 
@@ -78,7 +82,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // 保留模板字段，最小化实现（后端阶段不做兑换码/多用户管理）
   const [allUsers] = useState<User[]>([]);
-  const [redemptionCodes] = useState<RedemptionCode[]>([]);
+  const [redemptionCodes, setRedemptionCodes] = useState<RedemptionCode[]>([]);
   const [systemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
 
   useEffect(() => {
@@ -94,6 +98,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         const profile = await fetchProfileApi();
         setUser(mapUserFromProfile(profile));
+        await refreshCodes();
       } catch {
         // token 失效或后端不可用，清理登录态
         setToken(null);
@@ -107,8 +112,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const hasAIAccess = useMemo(() => {
-    // Phase4 联调重点在 Auth + Projects：这里不做订阅校验，避免阻断 UI 入口
-    return !!user;
+    if (!user) return false;
+    if (!user.aiAccessUntil) return false;
+    return user.aiAccessUntil > Date.now();
   }, [user]);
 
   const login = async (username: string, password: string): Promise<boolean> => {
@@ -116,6 +122,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await loginApi({ username, password });
       const profile = await fetchProfileApi();
       setUser(mapUserFromProfile(profile));
+      await refreshCodes();
+      // 登录后上报心跳（仅基础信息）
+      apiRequest('/api/v1/users/heartbeat', {
+        method: 'POST',
+        body: JSON.stringify({ device_id: deviceId })
+      }).catch(() => {});
       return true;
     } catch {
       return false;
@@ -128,10 +140,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     inviteCode: string
   ): Promise<{ success: boolean; message?: string }> => {
     try {
-      // 后端注册不需要s按 inviteCode（模板 UI 仍保留输入），因此忽略 inviteCode
       await registerApi({ username, password });
       const profile = await fetchProfileApi();
       setUser(mapUserFromProfile(profile));
+      if (inviteCode) {
+        await redeemCodeApi(inviteCode, deviceId);
+        const refreshed = await fetchProfileApi();
+        setUser(mapUserFromProfile(refreshed));
+        await refreshCodes();
+      }
       return { success: true };
     } catch (e: any) {
       return { success: false, message: e?.message || '注册失败' };
@@ -141,10 +158,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     // 先清理本地，再异步通知后端
     setUser(null);
+    setRedemptionCodes([]);
     setToken(null);
     logoutApi().catch(() => {
       // 忽略网络错误
     });
+  };
+
+  const refreshCodes = async (page = 1, size = 500, status = 'all', search = '', sort = 'desc') => {
+    try {
+      if (!user || user.role !== 'admin') {
+        setRedemptionCodes([]);
+        return;
+      }
+      const data = await fetchCodesApi(page, size, status, search, sort);
+      setRedemptionCodes(
+        (data.list || []).map((item) => ({
+          code: item.code,
+          createdAt: item.created_at ? Date.parse(item.created_at) : Date.now(),
+          expiresAt: item.expires_at ? Date.parse(item.expires_at) : Date.now(),
+          maxUses: item.max_uses || 1,
+          usedCount: item.used_count || 0,
+          usedByUserIds: [],
+          createdBy: String(item.created_by || ''),
+          batchId: item.batch_id,
+          tags: item.tags || [],
+          note: item.note,
+          prefix: item.prefix,
+          status: (item.status || 'active') as any,
+          source: (item.source || 'admin') as any,
+        }))
+      );
+    } catch {
+      setRedemptionCodes([]);
+    }
   };
 
   return (
@@ -163,8 +210,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         redemptionCodes,
         systemConfig,
         deleteUser: () => {},
-        batchGenerateCodes: () => [],
-        batchUpdateCodes: () => {},
+        batchGenerateCodes: (config) => {
+          if (!user || user.role !== 'admin') return [];
+          generateCodesApi({
+            prefix: config.prefix,
+            length: config.length,
+            count: config.count,
+            validity_days: config.validityDays,
+            max_uses: config.maxUses,
+            tags: config.tags,
+            note: config.note,
+            source: config.source || 'admin'
+          }).then(() => refreshCodes()).catch(() => {});
+          return [];
+        },
+        batchUpdateCodes: (codes, action, value) => {
+          if (!user || user.role !== 'admin') return;
+          batchUpdateCodesApi({ codes, action, value }).then(() => refreshCodes()).catch(() => {});
+        },
+        fetchCodes: (page, size, status, search, sort) => refreshCodes(page, size, status, search, sort),
         updateSystemConfig: () => {},
         generateInviteCode: () => {},
         deleteInviteCode: () => {},

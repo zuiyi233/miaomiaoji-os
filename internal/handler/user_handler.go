@@ -33,6 +33,11 @@ type ChangePasswordRequest struct {
 	NewPassword string `json:"new_password" binding:"required,min=6,max=100"`
 }
 
+// HeartbeatRequest 用户心跳请求
+type HeartbeatRequest struct {
+	DeviceID string `json:"device_id" binding:"omitempty,max=100"`
+}
+
 // ProfileResponse 用户资料响应
 type ProfileResponse struct {
 	ID                 uint   `json:"id"`
@@ -43,6 +48,7 @@ type ProfileResponse struct {
 	Points             int    `json:"points"`
 	CheckInStreak      int    `json:"check_in_streak"`
 	MustChangePassword bool   `json:"must_change_password"`
+	AIAccessUntil      string `json:"ai_access_until"`
 }
 
 // GetProfile 获取当前用户信息
@@ -69,6 +75,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		Points:             user.Points,
 		CheckInStreak:      user.CheckInStreak,
 		MustChangePassword: user.MustChangePassword,
+		AIAccessUntil:      formatTimeRFC3339(user.AIAccessUntil),
 	})
 }
 
@@ -115,6 +122,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		Points:             user.Points,
 		CheckInStreak:      user.CheckInStreak,
 		MustChangePassword: user.MustChangePassword,
+		AIAccessUntil:      formatTimeRFC3339(user.AIAccessUntil),
 	})
 }
 
@@ -135,6 +143,29 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	if err := h.userService.ChangePassword(userID, req.NewPassword); err != nil {
 		logger.Error("Change password failed", logger.Err(err), logger.Uint("user_id", userID))
 		response.Fail(c, errors.CodeDatabaseError, "修改密码失败")
+		return
+	}
+
+	response.Success(c)
+}
+
+// Heartbeat 用户心跳
+func (h *UserHandler) Heartbeat(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "未登录")
+		return
+	}
+
+	var req HeartbeatRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, errors.CodeInvalidParams, err.Error())
+		return
+	}
+
+	if _, err := h.userService.UpdateHeartbeat(userID, req.DeviceID); err != nil {
+		logger.Error("Update heartbeat failed", logger.Err(err), logger.Uint("user_id", userID))
+		response.Fail(c, errors.CodeDatabaseError, "更新心跳失败")
 		return
 	}
 

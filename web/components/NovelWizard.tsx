@@ -30,7 +30,7 @@ export const NovelWizard: React.FC<NovelWizardProps> = ({ onCancel }) => {
             setStep(2);
         }
     } catch (e) {
-        alert("生成失败，请确认 API Key (process.env.API_KEY) 是否已在环境变量中正确配置且有效。");
+      alert("生成失败，请确认后端供应商配置是否已正确设置。");
     }
     setIsGenerating(false);
   };

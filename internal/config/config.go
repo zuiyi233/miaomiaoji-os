@@ -4,6 +4,8 @@ package config
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"novel-agent-os-backend/pkg/database"
 	"novel-agent-os-backend/pkg/logger"
@@ -20,6 +22,7 @@ type Config struct {
 	JWT       JWTConfig       `mapstructure:"jwt"`
 	Logging   logger.Config   `mapstructure:"logging"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+	AI        AIConfig        `mapstructure:"ai"`
 }
 
 type AppConfig struct {
@@ -46,6 +49,13 @@ type RateLimitConfig struct {
 	Burst             int `mapstructure:"burst"`
 }
 
+type AIConfig struct {
+	DefaultProvider string `mapstructure:"default_provider"`
+	ProvidersPath   string `mapstructure:"providers_path"`
+}
+
+var cfgMu sync.RWMutex
+
 func Init(configPath string, configName string) error {
 	v := viper.New()
 
@@ -71,45 +81,64 @@ func Init(configPath string, configName string) error {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
-	cfg = &Config{}
-	if err := v.Unmarshal(cfg); err != nil {
+	loaded := &Config{}
+	if err := v.Unmarshal(loaded); err != nil {
 		logger.Error("解析配置文件失败", logger.Err(err))
 		return fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	if cfg.App.Env == "" {
-		cfg.App.Env = "development"
+	if loaded.App.Env == "" {
+		loaded.App.Env = "development"
 	}
-	if cfg.Server.Port == 0 {
-		cfg.Server.Port = 8080
+	if loaded.Server.Port == 0 {
+		loaded.Server.Port = 8080
 	}
-	if cfg.Database.Type == "" {
-		cfg.Database.Type = "sqlite"
+	if loaded.Database.Type == "" {
+		loaded.Database.Type = "sqlite"
 	}
-	if cfg.Database.SQLitePath == "" {
-		cfg.Database.SQLitePath = "./data.db"
+	if loaded.Database.SQLitePath == "" {
+		loaded.Database.SQLitePath = "./data.db"
 	}
-	if cfg.JWT.Secret == "" {
-		cfg.JWT.Secret = "your-secret-key-change-in-production"
+	if loaded.JWT.Secret == "" {
+		loaded.JWT.Secret = "your-secret-key-change-in-production"
 	}
-	if cfg.JWT.ExpireHour == 0 {
-		cfg.JWT.ExpireHour = 24
+	if loaded.JWT.ExpireHour == 0 {
+		loaded.JWT.ExpireHour = 24
 	}
-	if cfg.RateLimit.RequestsPerSecond == 0 {
-		cfg.RateLimit.RequestsPerSecond = 100
+	if loaded.RateLimit.RequestsPerSecond == 0 {
+		loaded.RateLimit.RequestsPerSecond = 100
 	}
-	if cfg.RateLimit.Burst == 0 {
-		cfg.RateLimit.Burst = 200
+	if loaded.RateLimit.Burst == 0 {
+		loaded.RateLimit.Burst = 200
 	}
+	if loaded.AI.ProvidersPath == "" {
+		loaded.AI.ProvidersPath = "./configs/providers"
+	}
+
+	cfgMu.Lock()
+	cfg = loaded
+	cfgMu.Unlock()
 
 	return nil
 }
 
 func Get() *Config {
+	cfgMu.RLock()
+	defer cfgMu.RUnlock()
 	if cfg == nil {
 		panic("config not initialized, call config.Init() first")
 	}
 	return cfg
+}
+
+// Reload 重新加载配置
+func Reload() error {
+	return Init("", "config")
+}
+
+// NowUTCString 返回UTC时间字符串
+func NowUTCString() string {
+	return time.Now().UTC().Format(time.RFC3339)
 }
 
 func GetDBConfig() database.Config {

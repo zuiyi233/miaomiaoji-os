@@ -246,7 +246,7 @@ export const AISettingsModal: React.FC<AISettingsModalProps> = ({ onClose }) => 
             <Info className="w-5 h-5 text-amber-500 shrink-0" />
             <div className="space-y-1">
                <p className="text-[10px] text-amber-700 dark:text-amber-400 font-bold leading-relaxed">
-                 API 密钥由环境变量 process.env.API_KEY 提供 (Local 模式下可能不需要)。
+                 API 密钥由后端供应商配置提供，Local 模式下可能不需要。
                </p>
                <p className="text-[9px] text-amber-600/70 dark:text-amber-500/50 font-medium leading-relaxed">
                  设置将实时保存到当前项目。

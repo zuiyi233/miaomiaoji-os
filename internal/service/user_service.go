@@ -20,6 +20,8 @@ type UserService interface {
 	EnsureDefaultAdmin() error
 	CheckIn(userID uint) error
 	ListUsers(page, size int) ([]*model.User, int64, error)
+	UpdateAIAccess(userID uint, durationDays int, code string) (*model.User, error)
+	UpdateHeartbeat(userID uint, deviceID string) (*model.User, error)
 }
 
 // userService 用户服务实现
@@ -194,4 +196,51 @@ func (s *userService) ListUsers(page, size int) ([]*model.User, int64, error) {
 		size = 10
 	}
 	return s.userRepo.List(page, size)
+}
+
+// UpdateAIAccess 更新用户AI权限有效期
+func (s *userService) UpdateAIAccess(userID uint, durationDays int, code string) (*model.User, error) {
+	if durationDays <= 0 {
+		return nil, errors.New("invalid duration")
+	}
+
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	base := time.Now()
+	if user.AIAccessUntil != nil && user.AIAccessUntil.After(base) {
+		base = *user.AIAccessUntil
+	}
+
+	newUntil := base.AddDate(0, 0, durationDays)
+	user.AIAccessUntil = &newUntil
+	user.InviteCodeUsed = code
+
+	if err := s.userRepo.Update(user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// UpdateHeartbeat 更新用户心跳信息
+func (s *userService) UpdateHeartbeat(userID uint, deviceID string) (*model.User, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if deviceID != "" {
+		user.LastDeviceID = deviceID
+	}
+	lastActive := time.Now()
+	user.LastActiveAt = &lastActive
+
+	if err := s.userRepo.Update(user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }

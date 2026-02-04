@@ -111,6 +111,9 @@ func autoMigrate() error {
 		&model.SettlementEntry{},
 		&model.CorpusStory{},
 		&model.File{},
+		&model.RedemptionCode{},
+		&model.RedemptionCodeUse{},
+		&model.AIProviderConfig{},
 	)
 }
 

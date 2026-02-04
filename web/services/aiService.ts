@@ -1,7 +1,9 @@
 
-import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
+import { Type } from "@google/genai";
 import inspirationRaw from '../assets/inspiration.md?raw';
-import { AIProvider, AISettings, EntityType, ModelInfo, Project } from "../types";
+import { AISettings, EntityType, ModelInfo, Project } from "../types";
+import { clearModelCache as clearModelCacheDB, getModelCache, setModelCache } from "./db";
+import { apiRequest, getApiBaseUrl } from "./apiClient";
 
 // Base interface for the response
 export interface AIResponse {
@@ -28,155 +30,95 @@ const GEMINI_MODELS: ModelInfo[] = [
   { id: 'gemini-2.5-flash-thinking', name: 'Gemini 2.5 Flash Thinking', provider: 'gemini' },
 ];
 
-export const clearModelCache = () => {
-  const keys = Object.keys(localStorage);
-  keys.forEach(key => {
-    if (key.startsWith(CACHE_KEY_PREFIX)) {
-      localStorage.removeItem(key);
-    }
-  });
+export const clearModelCache = async (provider?: string) => {
+	if (provider) {
+		await clearModelCacheDB(`${CACHE_KEY_PREFIX}${provider}`);
+		return;
+	}
+	await clearModelCacheDB();
 };
 
 export const fetchAvailableModels = async (settings: AISettings): Promise<ModelInfo[]> => {
-  const cacheKey = `${CACHE_KEY_PREFIX}${settings.provider}`;
-  
-  // Try Cache (skip cache for local to ensure we get live status)
-  if (settings.provider !== 'local') {
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const { data, timestamp } = JSON.parse(cached);
-        if (Date.now() - timestamp < CACHE_DURATION) {
-          return data;
-        }
-      }
-    } catch (e) {
-      console.warn("Cache read failed", e);
-    }
-  }
+	const cacheKey = `${CACHE_KEY_PREFIX}${settings.provider}`;
 
-  let models: ModelInfo[] = [];
+	if (settings.provider !== 'local') {
+		try {
+			const cached = await getModelCache(cacheKey);
+			if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+				return cached.data as ModelInfo[];
+			}
+		} catch (e) {
+			console.warn("Cache read failed", e);
+		}
+	}
 
-  if (settings.provider === 'gemini') {
-    models = GEMINI_MODELS;
-  } else {
-    // Fetch for OpenAI, Proxy, or Local
-    let endpoint = '';
-    
-    if (settings.provider === 'local') {
-      // For local, default to Ollama/standard local port if not specified
-      const base = settings.proxyEndpoint || 'http://localhost:11434/v1';
-      endpoint = base.endsWith('/') ? `${base}models` : `${base}/models`;
-    } else if (settings.provider === 'openai') {
-      endpoint = 'https://api.openai.com/v1/models';
-    } else if (settings.proxyEndpoint) {
-      if (settings.proxyEndpoint.includes('/chat/completions')) {
-        endpoint = settings.proxyEndpoint.replace('/chat/completions', '/models');
-      } else {
-        endpoint = settings.proxyEndpoint.endsWith('/') 
-          ? `${settings.proxyEndpoint}models` 
-          : `${settings.proxyEndpoint}/models`;
-      }
-    }
-    
-    if (endpoint) {
-      try {
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json'
-        };
-        // Add Authorization only if not local (unless needed) or if key exists
-        if (settings.provider !== 'local' && process.env.API_KEY) {
-           headers['Authorization'] = `Bearer ${process.env.API_KEY}`;
-        } else if (process.env.API_KEY && settings.provider === 'local') {
-           // Some local proxies might still want a dummy key
-           headers['Authorization'] = `Bearer ${process.env.API_KEY}`;
-        }
+	let models: ModelInfo[] = [];
+	if (settings.provider === 'gemini') {
+		models = GEMINI_MODELS;
+	} else {
+		try {
+			const data = await apiRequest<{ models: ModelInfo[] }>(`/api/v1/ai/models?provider=${settings.provider}`, {
+				method: 'GET'
+			});
+			models = (data.models || []).map((m) => ({
+				id: m.id,
+				name: m.name || m.id,
+				provider: settings.provider
+			}));
+		} catch (error) {
+			console.error("Failed to fetch models", error);
+			return [];
+		}
+	}
 
-        const response = await fetch(endpoint, {
-          method: 'GET',
-          headers
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          models = (data.data || [])
-            .map((m: any) => ({
-              id: m.id,
-              name: m.id,
-              provider: settings.provider
-            }))
-            .sort((a: ModelInfo, b: ModelInfo) => a.id.localeCompare(b.id));
-        }
-      } catch (error) {
-        console.error("Failed to fetch models", error);
-        return []; 
-      }
-    }
-  }
+	if (models.length > 0 && settings.provider !== 'local') {
+		await setModelCache({ provider: cacheKey, data: models, timestamp: Date.now() });
+	}
 
-  if (models.length > 0 && settings.provider !== 'local') {
-    localStorage.setItem(cacheKey, JSON.stringify({ data: models, timestamp: Date.now() }));
-  }
-
-  return models;
+	return models;
 };
 
 const callGemini = async (prompt: string, systemInstruction: string, settings: AISettings): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  // Pass configuration for maxOutputTokens and thinkingBudget to comply with Gemini API guidelines
-  const response: GenerateContentResponse = await ai.models.generateContent({
-    model: settings.model || 'gemini-3-flash-preview',
-    contents: prompt,
-    config: {
-      systemInstruction: systemInstruction,
-      temperature: settings.temperature,
-      maxOutputTokens: settings.maxOutputTokens,
-      thinkingConfig: settings.thinkingBudget !== undefined ? { thinkingBudget: settings.thinkingBudget } : undefined,
-    }
-  });
-  return response.text || "";
+	const modelId = settings.model || 'gemini-3-flash-preview';
+	const body = JSON.stringify({
+		contents: [{ role: "user", parts: [{ text: prompt }] }],
+		generationConfig: {
+			temperature: settings.temperature,
+			maxOutputTokens: settings.maxOutputTokens,
+		},
+		systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined
+	});
+	const data = await apiRequest<any>(`/api/v1/ai/proxy`, {
+		method: 'POST',
+		body: JSON.stringify({ provider: 'gemini', path: `v1beta/models/${modelId}:generateContent`, body })
+	});
+	return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 };
 
 const callOpenAICompatible = async (prompt: string, systemInstruction: string, settings: AISettings): Promise<string> => {
-  let endpoint = '';
-  if (settings.provider === 'local') {
-     endpoint = settings.proxyEndpoint || 'http://localhost:11434/v1/chat/completions';
-  } else if (settings.provider === 'openai') {
-     endpoint = 'https://api.openai.com/v1/chat/completions';
-  } else {
-     endpoint = settings.proxyEndpoint || 'https://api.openai.com/v1/chat/completions';
-  }
-  
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
-  };
-  
-  if (settings.provider !== 'local' && process.env.API_KEY) {
-    headers['Authorization'] = `Bearer ${process.env.API_KEY}`;
-  } else if (process.env.API_KEY) {
-    // Optional for local, but good practice for proxies
-    headers['Authorization'] = `Bearer ${process.env.API_KEY}`; 
-  }
+	const body = JSON.stringify({
+		model: settings.model,
+		messages: [
+			{ role: "system", content: systemInstruction },
+			{ role: "user", content: prompt }
+		],
+		temperature: settings.temperature
+	});
 
-  try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: settings.model,
-        messages: [
-          { role: "system", content: systemInstruction },
-          { role: "user", content: prompt }
-        ],
-        temperature: settings.temperature
-      })
-    });
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || "";
-  } catch (error) {
-    console.error("OpenAI/Proxy/Local Error:", error);
-    return "AI 接口调用失败，请检查配置或本地服务状态。";
-  }
+	try {
+		const data = await apiRequest<any>(`/api/v1/ai/proxy`, {
+			method: 'POST',
+			body: JSON.stringify({
+				provider: settings.provider,
+				path: settings.provider === 'local' ? 'v1/chat/completions' : 'v1/chat/completions',
+				body
+			})
+		});
+		return data.choices?.[0]?.message?.content || "";
+	} catch (error) {
+		console.error("OpenAI/Proxy/Local Error:", error);
+		return "AI 接口调用失败，请检查配置或本地服务状态。";
+	}
 };
 
 export const generateText = async (prompt: string, systemInstruction: string, settings: AISettings): Promise<string> => {
@@ -189,22 +131,24 @@ export const generateText = async (prompt: string, systemInstruction: string, se
 
 export const generateJSON = async (prompt: string, systemInstruction: string, schema: any, settings: AISettings): Promise<any> => {
   if (settings.provider === 'gemini') {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    // Pass configuration for maxOutputTokens and thinkingBudget to comply with Gemini API guidelines
-    const response = await ai.models.generateContent({
-      model: settings.model || 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: schema,
-        temperature: settings.temperature,
-        maxOutputTokens: settings.maxOutputTokens,
-        thinkingConfig: settings.thinkingBudget !== undefined ? { thinkingBudget: settings.thinkingBudget } : undefined,
-      }
-    });
-    return JSON.parse(response.text || "{}");
-  } else {
+		const modelId = settings.model || 'gemini-3-flash-preview';
+		const body = JSON.stringify({
+			contents: [{ role: "user", parts: [{ text: prompt }] }],
+			generationConfig: {
+				temperature: settings.temperature,
+				maxOutputTokens: settings.maxOutputTokens,
+				responseMimeType: "application/json",
+				responseSchema: schema,
+			},
+			systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined
+		});
+		const data = await apiRequest<any>(`/api/v1/ai/proxy`, {
+			method: 'POST',
+			body: JSON.stringify({ provider: 'gemini', path: `v1beta/models/${modelId}:generateContent`, body })
+		});
+		const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+		return JSON.parse(text || "{}");
+	} else {
     const jsonPrompt = `${prompt}\n\n请严格按此 JSON 结构返回：${JSON.stringify(schema)}`;
     const text = await callOpenAICompatible(jsonPrompt, systemInstruction, settings);
     try {
@@ -223,69 +167,80 @@ export async function* generateTextStream(
   settings: AISettings, 
   history: { role: string; parts: { text: string }[] }[] = []
 ): AsyncGenerator<string> {
-  if (settings.provider === 'gemini') {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const chat = ai.chats.create({
-      model: settings.model || 'gemini-3-flash-preview',
-      history: history,
-      config: {
-        systemInstruction: systemInstruction,
-        temperature: settings.temperature,
-        // Pass configuration for maxOutputTokens and thinkingBudget to comply with Gemini API guidelines
-        maxOutputTokens: settings.maxOutputTokens,
-        thinkingConfig: settings.thinkingBudget !== undefined ? { thinkingBudget: settings.thinkingBudget } : undefined,
-      }
-    });
-    const result = await chat.sendMessageStream({ message: prompt });
-    for await (const chunk of result) {
-      yield (chunk as GenerateContentResponse).text || "";
-    }
-  } else {
-    let endpoint = '';
-    if (settings.provider === 'local') {
-       endpoint = settings.proxyEndpoint || 'http://localhost:11434/v1/chat/completions';
-    } else if (settings.provider === 'openai') {
-       endpoint = 'https://api.openai.com/v1/chat/completions';
-    } else {
-       endpoint = settings.proxyEndpoint || 'https://api.openai.com/v1/chat/completions';
-    }
-    
+	if (settings.provider === 'gemini') {
+		const modelId = settings.model || 'gemini-3-flash-preview';
+		const body = JSON.stringify({
+			contents: [{ role: "user", parts: [{ text: prompt }] }],
+			generationConfig: {
+				temperature: settings.temperature,
+				maxOutputTokens: settings.maxOutputTokens,
+			},
+			systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined
+		});
+
+		const baseUrl = getApiBaseUrl();
+		const streamUrl = baseUrl ? `${baseUrl}/api/v1/ai/proxy/stream` : '/api/v1/ai/proxy/stream';
+		const response = await fetch(streamUrl, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ provider: 'gemini', path: `v1beta/models/${modelId}:streamGenerateContent?alt=sse`, body })
+		});
+
+		if (!response.ok || !response.body) {
+			yield "流式连接失败。";
+			return;
+		}
+
+		const reader = response.body.getReader();
+		const decoder = new TextDecoder();
+		let buffer = '';
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			buffer += decoder.decode(value, { stream: true });
+			const lines = buffer.split('\n');
+			buffer = lines.pop() || '';
+			for (const line of lines) {
+				const trimmed = line.trim();
+				if (!trimmed || trimmed === 'data: [DONE]') continue;
+				if (trimmed.startsWith('data: ')) {
+					try {
+						const data = JSON.parse(trimmed.substring(6));
+						const chunk = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+						if (chunk) yield chunk;
+					} catch {}
+				}
+			}
+		}
+	} else {
     const messages = [
         { role: "system", content: systemInstruction },
         ...history.map(h => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.parts[0].text })),
         { role: "user", content: prompt }
     ];
 
-    const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-    };
-    
-    if (settings.provider !== 'local' && process.env.API_KEY) {
-        headers['Authorization'] = `Bearer ${process.env.API_KEY}`;
-    } else if (process.env.API_KEY) {
-        headers['Authorization'] = `Bearer ${process.env.API_KEY}`;
-    }
+    const body = JSON.stringify({
+      model: settings.model,
+      messages,
+      temperature: settings.temperature,
+      stream: true
+    });
 
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model: settings.model,
-          messages,
-          temperature: settings.temperature,
-          stream: true
-        })
-      });
+		const baseUrl = getApiBaseUrl();
+		const streamUrl = baseUrl ? `${baseUrl}/api/v1/ai/proxy/stream` : '/api/v1/ai/proxy/stream';
+		const response = await fetch(streamUrl, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ provider: settings.provider, path: 'v1/chat/completions', body })
+		});
 
-      if (!response.ok) {
+      if (!response.ok || !response.body) {
           yield "AI 接口连接失败。";
           return;
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) return;
-
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
       while (true) {

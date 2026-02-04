@@ -8,6 +8,7 @@ export type ProfileDTO = {
   role: 'user' | 'admin';
   points?: number;
   check_in_streak?: number;
+  ai_access_until?: string;
 };
 
 export async function fetchProfileApi(): Promise<ProfileDTO> {

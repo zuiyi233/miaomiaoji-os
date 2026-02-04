@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { getExportCodesUrl } from '../services/redemptionApi';
+import { fetchProviderConfigApi, testProviderConfigApi, updateProviderConfigApi } from '../services/aiConfigApi';
 import { useProject } from '../contexts/ProjectContext';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { 
@@ -30,13 +32,20 @@ const StatusBadge: React.FC<{ status: CodeStatus, expiresAt: number }> = ({ stat
 };
 
 export const UserSettings: React.FC = () => {
-  const { user, allUsers, logout, redemptionCodes, batchGenerateCodes, batchUpdateCodes, deviceId, hasAIAccess, systemConfig, updateSystemConfig } = useAuth();
+  const { user, allUsers, logout, redemptionCodes, batchGenerateCodes, batchUpdateCodes, fetchCodes, deviceId, hasAIAccess, systemConfig, updateSystemConfig } = useAuth();
   const { project, theme, setTheme, defaultAISettings, updateDefaultAISettings, updateAISettings, availableModels, refreshModels, previousViewMode, navigateBack, projects } = useProject();
   const { confirm } = useConfirm();
   
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isManualInput, setIsManualInput] = useState(false);
+  const [providerConfig, setProviderConfig] = useState<{ provider: AIProvider; baseUrl: string; apiKey: string }>({
+    provider: 'gemini',
+    baseUrl: '',
+    apiKey: ''
+  });
+   const [isSavingProvider, setIsSavingProvider] = useState(false);
+   const [isTestingProvider, setIsTestingProvider] = useState(false);
   
   // --- Admin State ---
   const [genPrefix, setGenPrefix] = useState('');
@@ -70,15 +79,24 @@ export const UserSettings: React.FC = () => {
     return { total, active, expiring };
   }, [redemptionCodes]);
 
-  const providers: { id: AIProvider; name: string; icon: React.ReactNode; color: string; activeBg: string }[] = [
-    { id: 'gemini', name: 'Google Gemini', icon: <Sparkles className="w-4 h-4" />, color: 'bg-blue-500', activeBg: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20' },
-    { id: 'openai', name: 'OpenAI (官方)', icon: <Cpu className="w-4 h-4" />, color: 'bg-emerald-500', activeBg: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20' },
-    { id: 'proxy', name: '第三方代理', icon: <Globe className="w-4 h-4" />, color: 'bg-indigo-500', activeBg: 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20' },
-  ];
+   const providers: { id: AIProvider; name: string; icon: React.ReactNode; color: string; activeBg: string }[] = [
+     { id: 'gemini', name: 'Google Gemini', icon: <Sparkles className="w-4 h-4" />, color: 'bg-blue-500', activeBg: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20' },
+     { id: 'openai', name: 'OpenAI (官方)', icon: <Cpu className="w-4 h-4" />, color: 'bg-emerald-500', activeBg: 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20' },
+     { id: 'openrouter', name: 'OpenRouter', icon: <Globe className="w-4 h-4" />, color: 'bg-sky-500', activeBg: 'bg-sky-50 border-sky-200 dark:bg-sky-900/20' },
+     { id: 'anthropic', name: 'Anthropic', icon: <Globe className="w-4 h-4" />, color: 'bg-fuchsia-500', activeBg: 'bg-fuchsia-50 border-fuchsia-200 dark:bg-fuchsia-900/20' },
+     { id: 'proxy', name: '第三方代理', icon: <Globe className="w-4 h-4" />, color: 'bg-indigo-500', activeBg: 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20' },
+     { id: 'local', name: '本地模型', icon: <Cpu className="w-4 h-4" />, color: 'bg-amber-500', activeBg: 'bg-amber-50 border-amber-200 dark:bg-amber-900/20' },
+   ];
 
   useEffect(() => {
     if (availableModels.length === 0) handleRefreshModels();
   }, []);
+
+   useEffect(() => {
+     if (user?.role === 'admin') {
+       loadProviderConfig(providerConfig.provider);
+     }
+   }, [user?.role, providerConfig.provider]);
 
   const handleRefreshModels = async () => {
     setIsRefreshing(true);
@@ -88,6 +106,51 @@ export const UserSettings: React.FC = () => {
       console.error(e);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+   const loadProviderConfig = async (provider: AIProvider) => {
+    if (!user || user.role !== 'admin') return;
+    try {
+      const data = await fetchProviderConfigApi(provider);
+      setProviderConfig({
+        provider: provider,
+        baseUrl: data.base_url || '',
+        apiKey: data.api_key || ''
+      });
+    } catch (e) {
+      setProviderConfig({ provider, baseUrl: '', apiKey: '' });
+    }
+  };
+
+  const saveProviderConfig = async () => {
+    if (!user || user.role !== 'admin') return;
+    setIsSavingProvider(true);
+    try {
+      await updateProviderConfigApi({
+        provider: providerConfig.provider,
+        base_url: providerConfig.baseUrl,
+        api_key: providerConfig.apiKey
+      });
+      await loadProviderConfig(providerConfig.provider);
+      alert('供应商配置已保存');
+    } catch (e) {
+      alert('保存失败，请检查配置');
+    } finally {
+      setIsSavingProvider(false);
+    }
+  };
+
+  const testProviderConfig = async () => {
+    if (!user || user.role !== 'admin') return;
+    setIsTestingProvider(true);
+    try {
+      await testProviderConfigApi(providerConfig.provider);
+      alert('连接测试成功');
+    } catch (e) {
+      alert('连接测试失败');
+    } finally {
+      setIsTestingProvider(false);
     }
   };
 
@@ -135,28 +198,16 @@ export const UserSettings: React.FC = () => {
     alert(`成功生成 ${genCount} 个兑换码。`);
   };
 
-  const filteredCodes = useMemo(() => {
-    let result = redemptionCodes;
-    if (filterStatus !== 'all') {
-        if (filterStatus === 'rewards') {
-            result = result.filter(c => c.source === 'points_exchange');
-        } else if (filterStatus === 'expired') {
-            result = result.filter(c => Date.now() > c.expiresAt);
-        } else if (filterStatus === 'active') {
-            result = result.filter(c => c.status === 'active' && Date.now() <= c.expiresAt);
-        } else {
-            result = result.filter(c => c.status === filterStatus);
-        }
-    }
-    if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        result = result.filter(c => c.code.toLowerCase().includes(q) || c.note?.toLowerCase().includes(q) || c.tags.some(t => t.toLowerCase().includes(q)));
-    }
-    return result.sort((a, b) => sortOrder === 'desc' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt);
-  }, [redemptionCodes, filterStatus, searchQuery, sortOrder]);
+  const filteredCodes = useMemo(() => redemptionCodes, [redemptionCodes]);
+  const paginatedCodes = filteredCodes;
+  const totalPages = Math.max(1, Math.ceil(filteredCodes.length / itemsPerPage));
 
-  const paginatedCodes = filteredCodes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const totalPages = Math.ceil(filteredCodes.length / itemsPerPage);
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+    const status = filterStatus === 'rewards' ? 'all' : filterStatus;
+    const search = filterStatus === 'rewards' ? 'points_exchange' : searchQuery;
+    fetchCodes(currentPage, itemsPerPage, status, search, sortOrder).catch(() => {});
+  }, [filterStatus, searchQuery, sortOrder, currentPage, user?.role]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -186,12 +237,10 @@ export const UserSettings: React.FC = () => {
   };
 
   const handleExport = () => {
-    const csvContent = "data:text/csv;charset=utf-8," 
-        + "Code,Status,Source,Creator,Created At,Expires At,Max Uses,Used Count,Note,Tags\n"
-        + filteredCodes.map(c => `${c.code},${c.status},${c.source || 'admin'},${c.createdBy},${new Date(c.createdAt).toLocaleDateString()},${new Date(c.expiresAt).toLocaleDateString()},${c.maxUses},${c.usedCount},"${c.note || ''}","${c.tags.join(';')}"`).join("\n");
-    const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    const status = filterStatus === 'rewards' ? 'all' : filterStatus;
+    const search = filterStatus === 'rewards' ? 'points_exchange' : searchQuery;
+    link.setAttribute("href", getExportCodesUrl(status, search));
     link.setAttribute("download", `nao_codes_export_${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
@@ -598,20 +647,25 @@ export const UserSettings: React.FC = () => {
                   <div className="bg-white dark:bg-zinc-900 p-8 rounded-[3rem] border border-paper-200 dark:border-zinc-800 shadow-sm space-y-6">
                      <h3 className="text-xl font-black text-ink-900 dark:text-white font-serif italic">供应商选择</h3>
                      <div className="grid grid-cols-1 gap-3">
-                        {providers.map((p) => (
-                           <button
-                              key={p.id}
-                              onClick={() => project ? updateAISettings({ provider: p.id }) : updateDefaultAISettings({ provider: p.id })}
-                              className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
-                                 currentSettings.provider === p.id 
-                                 ? `${p.activeBg} border-brand-500 shadow-lg` 
-                                 : 'border-paper-50 dark:border-zinc-800 hover:border-paper-100 dark:hover:border-zinc-700'
-                              }`}
-                           >
-                              <div className={`p-3 rounded-xl text-white ${p.color} shadow-md`}>{p.icon}</div>
-                              <div className="text-left flex flex-col leading-tight"><span className="text-[11px] font-black uppercase tracking-widest">{p.name}</span><span className="text-[9px] font-bold text-ink-300 uppercase mt-0.5">Runtime Node</span></div>
-                           </button>
-                        ))}
+                         {providers.map((p) => (
+                            <button
+                               key={p.id}
+                               onClick={() => {
+                                 project ? updateAISettings({ provider: p.id }) : updateDefaultAISettings({ provider: p.id });
+                                 if (user?.role === 'admin') {
+                                   loadProviderConfig(p.id);
+                                 }
+                               }}
+                               className={`flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
+                                  currentSettings.provider === p.id 
+                                  ? `${p.activeBg} border-brand-500 shadow-lg` 
+                                  : 'border-paper-50 dark:border-zinc-800 hover:border-paper-100 dark:hover:border-zinc-700'
+                               }`}
+                            >
+                               <div className={`p-3 rounded-xl text-white ${p.color} shadow-md`}>{p.icon}</div>
+                               <div className="text-left flex flex-col leading-tight"><span className="text-[11px] font-black uppercase tracking-widest">{p.name}</span><span className="text-[9px] font-bold text-ink-300 uppercase mt-0.5">Runtime Node</span></div>
+                            </button>
+                         ))}
                      </div>
                   </div>
 
@@ -634,15 +688,44 @@ export const UserSettings: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                      <div className="space-y-8 md:col-span-2">
-                        {(currentSettings.provider === 'proxy' || currentSettings.provider === 'openai') && (
-                           <div className="space-y-2 animate-in slide-in-from-top-4">
-                              <label className="text-[10px] font-black text-ink-400 uppercase tracking-widest ml-2">Endpoint Proxy Address</label>
-                              <div className="relative group">
-                                 <Globe className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-300 group-focus-within:text-brand-500 transition-colors" />
-                                 <input value={currentSettings.proxyEndpoint || ''} onChange={(e) => project ? updateAISettings({ proxyEndpoint: e.target.value }) : updateDefaultAISettings({ proxyEndpoint: e.target.value })} className="w-full pl-14 pr-6 py-5 bg-paper-50 dark:bg-zinc-950 rounded-[1.5rem] border-none text-sm font-mono font-bold text-ink-900 dark:text-zinc-100 shadow-inner focus:ring-2 focus:ring-brand-100 transition-all" placeholder="https://api.oneapi.com/v1/chat/completions" />
+                         {(currentSettings.provider === 'proxy' || currentSettings.provider === 'openai' || currentSettings.provider === 'openrouter' || currentSettings.provider === 'anthropic' || currentSettings.provider === 'local') && (
+                            <div className="space-y-2 animate-in slide-in-from-top-4">
+                               <label className="text-[10px] font-black text-ink-400 uppercase tracking-widest ml-2">Endpoint Proxy Address</label>
+                               <div className="relative group">
+                                  <Globe className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-300 group-focus-within:text-brand-500 transition-colors" />
+                                  <input value={currentSettings.proxyEndpoint || ''} onChange={(e) => project ? updateAISettings({ proxyEndpoint: e.target.value }) : updateDefaultAISettings({ proxyEndpoint: e.target.value })} className="w-full pl-14 pr-6 py-5 bg-paper-50 dark:bg-zinc-950 rounded-[1.5rem] border-none text-sm font-mono font-bold text-ink-900 dark:text-zinc-100 shadow-inner focus:ring-2 focus:ring-brand-100 transition-all" placeholder="https://api.example.com/v1" />
+                               </div>
+                            </div>
+                         )}
+                         {user?.role === 'admin' && (
+                           <div className="space-y-3 bg-paper-50 dark:bg-zinc-950/50 p-6 rounded-[1.75rem] border border-paper-100 dark:border-zinc-800">
+                              <div className="flex items-center justify-between">
+                                <div className="text-[11px] font-black uppercase tracking-widest text-ink-500">供应商配置（管理员）</div>
+                                <div className="flex items-center gap-2">
+                                  <button onClick={testProviderConfig} disabled={isTestingProvider} className="px-3 py-2 bg-paper-100 dark:bg-zinc-800 text-ink-700 dark:text-zinc-200 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50">
+                                    {isTestingProvider ? '测试中' : '测试连接'}
+                                  </button>
+                                  <button onClick={saveProviderConfig} disabled={isSavingProvider} className="px-4 py-2 bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50">
+                                    {isSavingProvider ? '保存中' : '保存'}
+                                  </button>
+                                </div>
                               </div>
+                             <div className="grid grid-cols-1 gap-3">
+                               <input
+                                 value={providerConfig.baseUrl}
+                                 onChange={(e) => setProviderConfig((prev) => ({ ...prev, baseUrl: e.target.value }))}
+                                 className="w-full px-4 py-3 bg-white dark:bg-zinc-900 rounded-xl border border-paper-200 dark:border-zinc-800 text-xs font-mono"
+                                 placeholder="Base URL (例如 https://api.openai.com/v1)"
+                               />
+                               <input
+                                 value={providerConfig.apiKey}
+                                 onChange={(e) => setProviderConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
+                                 className="w-full px-4 py-3 bg-white dark:bg-zinc-900 rounded-xl border border-paper-200 dark:border-zinc-800 text-xs font-mono"
+                                 placeholder="API Key（保存后将脱敏显示）"
+                               />
+                             </div>
                            </div>
-                        )}
+                         )}
                         <div className="space-y-4">
                            <div className="flex justify-between items-center ml-2 mr-2">
                               <label className="text-[10px] font-black text-ink-400 uppercase tracking-widest">Active Model Brain</label>
