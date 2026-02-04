@@ -31,9 +31,21 @@ func (RedemptionCode) TableName() string {
 // RedemptionCodeUse 兑换码使用记录
 type RedemptionCodeUse struct {
 	BaseModelWithoutSoftDelete
-	CodeID   uint   `gorm:"index;not null" json:"code_id"`
-	UserID   uint   `gorm:"index;not null" json:"user_id"`
-	DeviceID string `gorm:"size:100" json:"device_id"`
+	RequestID        string         `gorm:"size:64;uniqueIndex;not null" json:"request_id"`
+	IdempotencyKey   string         `gorm:"size:64;index" json:"idempotency_key"`
+	CodeID           uint           `gorm:"index;not null" json:"code_id"`
+	UserID           uint           `gorm:"index;not null" json:"user_id"`
+	DeviceID         string         `gorm:"size:100" json:"device_id"`
+	RedeemCode       string         `gorm:"size:60" json:"redeem_code"`
+	CodeHash         string         `gorm:"size:64" json:"code_hash"`
+	ClientTime       string         `gorm:"size:30" json:"client_time"`
+	ServerTime       string         `gorm:"size:30" json:"server_time"`
+	AppID            string         `gorm:"size:50" json:"app_id"`
+	Platform         string         `gorm:"size:30" json:"platform"`
+	AppVersion       string         `gorm:"size:30" json:"app_version"`
+	ResultStatus     string         `gorm:"size:20" json:"result_status"`
+	ResultErrorCode  string         `gorm:"size:50" json:"result_error_code"`
+	EntitlementDelta datatypes.JSON `json:"entitlement_delta"`
 }
 
 // TableName 指定表名

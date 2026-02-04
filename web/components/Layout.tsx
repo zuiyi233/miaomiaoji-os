@@ -23,7 +23,7 @@ import { Menu, Loader2, Shield, Settings, User as UserIcon, LayoutDashboard, Che
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
 const LayoutContent: React.FC = () => {
-  const { viewMode, activeProjectId, theme, setViewMode, project, isAISidebarOpen, exitProject, activeSessionId, selectSession } = useProject();
+  const { viewMode, activeProjectId, theme, setViewMode, project, isAISidebarOpen, exitProject, activeSessionId, selectSession, projectLoadError, clearProjectLoadError } = useProject();
   const { user, isLoading } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -31,6 +31,7 @@ const LayoutContent: React.FC = () => {
   const location = useLocation();
   const isSettingsView = viewMode === ViewMode.SETTINGS;
   const showSidebar = !!activeProjectId && !isSettingsView;
+  const isEditorPage = !!activeProjectId && (location.pathname === '/' || location.pathname === '/writer');
 
   // Sync theme with DOM
   useEffect(() => {
@@ -143,42 +144,68 @@ const LayoutContent: React.FC = () => {
       )}
 
       <main className="flex-1 flex flex-col min-w-0 relative">
-        {/* 全局悬浮系统托盘 - 居中设计 */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[200] pointer-events-none w-full max-w-2xl flex justify-center px-4">
+        {/* 顶部系统托盘 - 不遮挡主内容 */}
+        <div
+          className={`absolute z-[200] pointer-events-none flex px-4 ${
+            isEditorPage
+              ? 'top-[76px] right-3 left-auto translate-x-0 w-auto max-w-none justify-end px-0'
+              : 'top-4 right-6 left-auto translate-x-0 w-auto max-w-none justify-end px-0'
+          }`}
+        >
           <div className={`flex items-center gap-1 p-1.5 bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl border border-paper-200 dark:border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] pointer-events-auto transition-all duration-500 ${viewMode === ViewMode.WRITER ? 'opacity-40 hover:opacity-100' : 'opacity-100'}`}>
              
              {/* 返回仪表盘按钮 (仅在进入项目后显示) */}
-             {activeProjectId && (
-               <button 
-                 onClick={exitProject}
-                 className="flex items-center gap-2 px-3 py-1.5 hover:bg-paper-100 dark:hover:bg-zinc-800 rounded-xl transition-all group text-ink-500 dark:text-zinc-400"
-                 title="返回仪表盘"
-               >
+              {activeProjectId && (
+                <button 
+                  onClick={exitProject}
+                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-paper-100 dark:hover:bg-zinc-800 rounded-xl transition-all group text-ink-500 dark:text-zinc-400"
+                  title="返回仪表盘"
+                >
                   <LayoutDashboard className="w-4 h-4 group-hover:scale-110 transition-transform" />
                   <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Dashboard</span>
                </button>
              )}
 
-             <div className="w-px h-4 bg-paper-200 dark:bg-zinc-800 mx-1"></div>
+              <div className="w-px h-4 bg-paper-200 dark:bg-zinc-800 mx-1"></div>
 
              {/* 设置中心入口 */}
-             <button 
-               onClick={() => setViewMode(ViewMode.SETTINGS)} 
-               className={`flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-xl transition-all group ${viewMode === ViewMode.SETTINGS ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md' : 'hover:bg-paper-50 dark:hover:bg-zinc-800'}`}
-             >
-                <div className="flex items-center gap-2">
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-black transition-colors ${viewMode === ViewMode.SETTINGS ? 'bg-white/20 dark:bg-black/20' : 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-ink-900'}`}>
-                    {user?.username.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex flex-col items-start leading-none mr-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">{user?.username}</span>
-                    <span className="text-[8px] font-medium opacity-50 uppercase">{user?.role}</span>
-                  </div>
-                </div>
-                <Settings className={`w-3.5 h-3.5 opacity-40 group-hover:opacity-100 group-hover:rotate-90 transition-all ${viewMode === ViewMode.SETTINGS ? 'opacity-100' : ''}`} />
-             </button>
-          </div>
+              <button 
+                onClick={() => setViewMode(ViewMode.SETTINGS)} 
+                className={`flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-xl transition-all group ${viewMode === ViewMode.SETTINGS ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md' : 'hover:bg-paper-50 dark:hover:bg-zinc-800'}`}
+              >
+                 <div className="flex items-center gap-2">
+                   <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-black transition-colors ${viewMode === ViewMode.SETTINGS ? 'bg-white/20 dark:bg-black/20' : 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-ink-900'}`}>
+                     {user?.username.charAt(0).toUpperCase()}
+                   </div>
+                   <div className="flex flex-col items-start leading-none mr-2">
+                     <span className="text-[10px] font-black uppercase tracking-widest">{user?.username}</span>
+                     <span className="text-[8px] font-medium opacity-50 uppercase">{user?.role}</span>
+                   </div>
+                 </div>
+                 <Settings className={`w-3.5 h-3.5 opacity-40 group-hover:opacity-100 group-hover:rotate-90 transition-all ${viewMode === ViewMode.SETTINGS ? 'opacity-100' : ''}`} />
+              </button>
+           </div>
         </div>
+
+        {projectLoadError && (
+          <div className="absolute top-20 right-6 z-[210] w-[360px] max-w-[90vw] pointer-events-auto">
+            <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border border-amber-200/60 dark:border-amber-800/50 text-amber-700 dark:text-amber-300 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] px-4 py-3 flex items-start gap-3">
+              <div className="mt-0.5">
+                <Shield className="w-4 h-4" />
+              </div>
+              <div className="flex-1">
+                <div className="text-[11px] font-black uppercase tracking-widest">本地项目读取异常</div>
+                <div className="text-[11px] font-medium mt-1 leading-relaxed">{projectLoadError}</div>
+              </div>
+              <button
+                onClick={clearProjectLoadError}
+                className="text-[10px] font-black uppercase tracking-widest text-amber-600/70 hover:text-amber-700 dark:text-amber-300/70 dark:hover:text-amber-200"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        )}
 
         {showSidebar && (
           <div className="md:hidden h-12 border-b border-paper-200 dark:border-zinc-800 flex items-center px-4 bg-paper-50 dark:bg-zinc-900 justify-between shrink-0">

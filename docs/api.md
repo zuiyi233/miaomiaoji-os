@@ -305,8 +305,23 @@
 - **请求体**:
 ```json
 {
+  "request_id": "req_xxx",
+  "idempotency_key": "redeem_xxx",
   "code": "XXXX-XXXX",
-  "device_id": "string"
+  "device_id": "string",
+  "client_time": "2026-02-04T02:00:00Z",
+  "app_id": "novel-agent-os",
+  "platform": "web",
+  "app_version": "1.0.0",
+  "result_status": "success",
+  "result_error_code": "",
+  "entitlement_delta": {
+    "entitlement_type": "ai_access",
+    "grant_mode": "add_days",
+    "start_at": "2026-02-04T02:00:00Z",
+    "end_at": "2026-03-06T02:00:00Z",
+    "plan_or_sku": "monthly"
+  }
 }
 ```
 - **响应**:
@@ -564,6 +579,56 @@
 ```
 - **响应**: 项目详情
 
+### 同步项目快照
+- **URL**: `POST /api/v1/projects/snapshot`
+- **描述**: 同步本地项目快照到后端（用于持久化）
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "external_id": "string (required, max:64)",
+  "title": "string (optional, max:200)",
+  "ai_settings": {},
+  "snapshot": {}
+}
+```
+- **响应**: 项目详情
+
+> 说明：线上纯网页模式请关闭项目同步，仅在本地/单机后端或允许云端存储时启用。
+
+### 备份项目快照（本地文件）
+- **URL**: `POST /api/v1/projects/backup`
+- **描述**: 将项目快照写入本地文件存储，作为保底备份
+- **认证**: 是
+- **请求体**:
+```json
+{
+  "external_id": "string (required, max:64)",
+  "title": "string (optional, max:200)",
+  "ai_settings": {},
+  "snapshot": {}
+}
+```
+- **响应**:
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "file_id": 1,
+    "file_name": "project_xxx_20260204_170000.json",
+    "storage_key": "backups/1/xxx/project_xxx_20260204_170000.json",
+    "project_id": 1
+  }
+}
+```
+
+### 获取最新备份
+- **URL**: `GET /api/v1/projects/:id/backup/latest`
+- **描述**: 获取指定项目最新备份文件信息
+- **认证**: 是
+- **响应**: File 元信息
+
 ### 获取项目详情
 - **URL**: `GET /api/v1/projects/:id`
 - **描述**: 获取项目详情
@@ -763,6 +828,31 @@
   - `Location: /api/v1/jobs/{job_uuid}`
 
 ---
+
+## 文件接口
+
+### 获取项目文件列表
+- **URL**: `GET /api/v1/files/project/:project_id`
+- **描述**: 获取指定项目的文件列表
+- **认证**: 是
+- **请求参数**:
+  - `page` 页码
+  - `page_size` 每页数量
+  - `file_type` 可选（如 backup）
+- **响应（data）**:
+```json
+{
+  "files": [],
+  "total": 0,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+### 下载文件
+- **URL**: `GET /api/v1/files/:id/download`
+- **描述**: 下载指定文件
+- **认证**: 是
 
 ## 任务接口
 

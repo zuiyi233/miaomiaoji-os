@@ -43,7 +43,6 @@ func Setup() *gin.Engine {
 	entityRepo := repository.NewEntityRepository()
 	templateRepo := repository.NewTemplateRepository()
 	projectService := service.NewProjectService(projectRepo, volumeRepo, documentRepo, entityRepo, templateRepo)
-	projectHandler := handler.NewProjectHandler(projectService)
 
 	volumeService := service.NewVolumeService(volumeRepo, projectRepo)
 	volumeHandler := handler.NewVolumeHandler(volumeService)
@@ -97,6 +96,8 @@ func Setup() *gin.Engine {
 	}
 	fileService := service.NewFileService(fileRepo, localStorage)
 	fileHandler := handler.NewFileHandler(fileService)
+
+	projectHandler := handler.NewProjectHandler(projectService, fileService)
 
 	// Corpus 依赖
 	corpusRepo := repository.NewCorpusRepository(db)
@@ -169,6 +170,9 @@ func Setup() *gin.Engine {
 			projects.GET("", middleware.JWTAuth(), projectHandler.List)
 			projects.GET("/", middleware.JWTAuth(), projectHandler.List)
 			projects.POST("/", middleware.JWTAuth(), projectHandler.Create)
+			projects.POST("/snapshot", middleware.JWTAuth(), projectHandler.UpsertSnapshot)
+			projects.POST("/backup", middleware.JWTAuth(), projectHandler.BackupSnapshot)
+			projects.GET("/:project_id/backup/latest", middleware.JWTAuth(), projectHandler.GetLatestBackup)
 			projects.GET("/:project_id", middleware.JWTAuth(), projectHandler.GetByID)
 			projects.PUT("/:project_id", middleware.JWTAuth(), projectHandler.Update)
 			projects.DELETE("/:project_id", middleware.JWTAuth(), projectHandler.Delete)

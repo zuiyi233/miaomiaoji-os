@@ -7,6 +7,7 @@ import (
 // Project 项目模型
 type Project struct {
 	BaseModel
+	ExternalID    *string        `gorm:"size:64;index:idx_user_external,unique" json:"external_id,omitempty"`
 	Title         string         `gorm:"size:200;not null" json:"title"`
 	Genre         string         `gorm:"size:50" json:"genre"`
 	Tags          datatypes.JSON `json:"tags"`
@@ -15,7 +16,8 @@ type Project struct {
 	UltimateValue string         `gorm:"type:text" json:"ultimate_value"`
 	WorldRules    string         `gorm:"type:text" json:"world_rules"`
 	AISettings    datatypes.JSON `json:"ai_settings"`
-	UserID        uint           `gorm:"index;not null" json:"user_id"`
+	Snapshot      datatypes.JSON `json:"snapshot"`
+	UserID        uint           `gorm:"index:idx_user_external,unique;not null" json:"user_id"`
 
 	// 关联
 	Volumes   []Volume   `gorm:"foreignKey:ProjectID" json:"volumes,omitempty"`

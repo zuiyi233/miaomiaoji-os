@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"novel-agent-os-backend/internal/repository"
@@ -29,8 +30,17 @@ func NewRedemptionCodeHandler(codeService service.RedemptionCodeService, userSer
 
 // RedeemRequest 兑换请求
 type RedeemRequest struct {
-	Code     string `json:"code" binding:"required"`
-	DeviceID string `json:"device_id" binding:"omitempty,max=100"`
+	RequestID        string                 `json:"request_id" binding:"required,max=64"`
+	IdempotencyKey   string                 `json:"idempotency_key" binding:"omitempty,max=64"`
+	Code             string                 `json:"code" binding:"required"`
+	DeviceID         string                 `json:"device_id" binding:"omitempty,max=100"`
+	ClientTime       string                 `json:"client_time" binding:"omitempty,max=30"`
+	AppID            string                 `json:"app_id" binding:"omitempty,max=50"`
+	Platform         string                 `json:"platform" binding:"omitempty,max=30"`
+	AppVersion       string                 `json:"app_version" binding:"omitempty,max=30"`
+	ResultStatus     string                 `json:"result_status" binding:"omitempty,max=20"`
+	ResultErrorCode  string                 `json:"result_error_code" binding:"omitempty,max=50"`
+	EntitlementDelta map[string]interface{} `json:"entitlement_delta"`
 }
 
 // RedeemResponse 兑换响应
@@ -234,7 +244,21 @@ func (h *RedemptionCodeHandler) Redeem(c *gin.Context) {
 	}
 
 	code := strings.TrimSpace(req.Code)
-	item, durationDays, err := h.codeService.Redeem(userID, req.DeviceID, code)
+	item, durationDays, err := h.codeService.Redeem(service.RedeemPayload{
+		RequestID:        req.RequestID,
+		IdempotencyKey:   req.IdempotencyKey,
+		UserID:           userID,
+		DeviceID:         req.DeviceID,
+		RedeemCode:       code,
+		ClientTime:       req.ClientTime,
+		ServerTime:       time.Now().UTC().Format(time.RFC3339),
+		AppID:            req.AppID,
+		Platform:         req.Platform,
+		AppVersion:       req.AppVersion,
+		ResultStatus:     req.ResultStatus,
+		ResultErrorCode:  req.ResultErrorCode,
+		EntitlementDelta: req.EntitlementDelta,
+	})
 	if err != nil {
 		response.Fail(c, errors.CodeValidationError, err.Error())
 		return

@@ -200,10 +200,27 @@ func (h *FileHandler) ListFilesByProject(c *gin.Context) {
 		pageSize = 20
 	}
 
+	fileType := c.Query("file_type")
+	if fileType == "" {
+		fileType = "backup"
+	}
+
 	files, total, err := h.fileService.ListFilesByProject(projectID, page, pageSize)
 	if err != nil {
 		response.Fail(c, errors.CodeFileError, "Failed to list files")
 		return
+	}
+	if fileType != "" {
+		filtered := make([]*model.File, 0, len(files))
+		for _, item := range files {
+			if item.FileType == fileType {
+				filtered = append(filtered, item)
+			}
+		}
+		files = filtered
+		if int64(len(files)) < total {
+			total = int64(len(files))
+		}
 	}
 
 	response.SuccessWithData(c, gin.H{

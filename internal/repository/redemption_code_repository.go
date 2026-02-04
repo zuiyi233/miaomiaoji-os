@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"novel-agent-os-backend/internal/model"
 )
 

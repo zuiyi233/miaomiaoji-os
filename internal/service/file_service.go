@@ -3,7 +3,9 @@ package service
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
+
 	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/repository"
 	"novel-agent-os-backend/internal/storage"
@@ -19,6 +21,7 @@ type FileService interface {
 	ListFilesByProject(projectID uint, page, pageSize int) ([]*model.File, int64, error)
 	ListFilesByType(fileType string, page, pageSize int) ([]*model.File, int64, error)
 	DownloadFile(id uint) (io.ReadCloser, error)
+	GetLatestBackupByProject(projectID uint) (*model.File, error)
 }
 
 type fileService struct {
@@ -89,6 +92,10 @@ func (s *fileService) ListFilesByType(fileType string, page, pageSize int) ([]*m
 	return s.fileRepo.ListByType(fileType, page, pageSize)
 }
 
+func (s *fileService) GetLatestBackupByProject(projectID uint) (*model.File, error) {
+	return s.fileRepo.GetLatestByProjectAndType(projectID, "backup")
+}
+
 func (s *fileService) DownloadFile(id uint) (io.ReadCloser, error) {
 	file, err := s.fileRepo.GetByID(id)
 	if err != nil {
@@ -99,5 +106,5 @@ func (s *fileService) DownloadFile(id uint) (io.ReadCloser, error) {
 }
 
 func generateStorageKey(fileName string, userID uint) string {
-	return "files/" + string(rune(userID)) + "/" + fileName
+	return "files/" + fmt.Sprintf("%d", userID) + "/" + fileName
 }

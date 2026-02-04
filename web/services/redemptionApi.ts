@@ -29,10 +29,22 @@ export type CodeListDTO = {
   page_info: { page: number; size: number; total: number };
 };
 
-export async function redeemCodeApi(code: string, deviceId?: string): Promise<RedeemResponse> {
+export async function redeemCodeApi(payload: {
+  request_id: string;
+  idempotency_key?: string;
+  code: string;
+  device_id?: string;
+  client_time?: string;
+  app_id?: string;
+  platform?: string;
+  app_version?: string;
+  result_status?: string;
+  result_error_code?: string;
+  entitlement_delta?: Record<string, any>;
+}): Promise<RedeemResponse> {
   return apiRequest<RedeemResponse>('/api/v1/codes/redeem', {
     method: 'POST',
-    body: JSON.stringify({ code, device_id: deviceId || '' })
+    body: JSON.stringify(payload)
   });
 }
 

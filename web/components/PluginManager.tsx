@@ -70,6 +70,7 @@ const ConfigModal: React.FC<ConfigModalProps> = ({ plugin, onSave, onClose }) =>
                     value={value} 
                     onChange={(e) => setConfig({...config, [key]: e.target.value})}
                     className="w-full bg-transparent text-sm font-bold text-ink-900 dark:text-zinc-100 outline-none"
+                    autoComplete="off"
                   />
                 </div>
                 <button onClick={() => handleRemove(key)} className="p-2 text-ink-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">

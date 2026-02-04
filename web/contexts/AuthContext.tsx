@@ -61,6 +61,8 @@ const getOrCreateDeviceId = (): string => {
   return id;
 };
 
+const getRequestId = () => `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
 function mapUserFromProfile(profile: any): User {
   const aiAccessUntil = profile.ai_access_until ? Date.parse(profile.ai_access_until) : 0;
   return {
@@ -144,7 +146,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const profile = await fetchProfileApi();
       setUser(mapUserFromProfile(profile));
       if (inviteCode) {
-        await redeemCodeApi(inviteCode, deviceId);
+        await redeemCodeApi({
+          request_id: getRequestId(),
+          idempotency_key: `redeem_${deviceId}_${inviteCode}`,
+          code: inviteCode,
+          device_id: deviceId,
+          client_time: new Date().toISOString(),
+          app_id: 'novel-agent-os',
+          platform: 'web',
+          app_version: (import.meta as any).env?.VITE_APP_VERSION || 'dev',
+          result_status: 'success',
+          entitlement_delta: {
+            entitlement_type: 'ai_access',
+            grant_mode: 'add_days'
+          }
+        });
         const refreshed = await fetchProfileApi();
         setUser(mapUserFromProfile(refreshed));
         await refreshCodes();

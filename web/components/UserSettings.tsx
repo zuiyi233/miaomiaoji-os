@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getExportCodesUrl } from '../services/redemptionApi';
 import { fetchProviderConfigApi, testProviderConfigApi, updateProviderConfigApi } from '../services/aiConfigApi';
 import { useProject } from '../contexts/ProjectContext';
+import { getBackupDownloadUrl, listProjectBackupsApi } from '../services/projectApi';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { 
   UserCircle, Shield, Calendar, Trash2, LogOut, Palette, Cpu, 
@@ -33,7 +34,10 @@ const StatusBadge: React.FC<{ status: CodeStatus, expiresAt: number }> = ({ stat
 
 export const UserSettings: React.FC = () => {
   const { user, allUsers, logout, redemptionCodes, batchGenerateCodes, batchUpdateCodes, fetchCodes, deviceId, hasAIAccess, systemConfig, updateSystemConfig } = useAuth();
-  const { project, theme, setTheme, defaultAISettings, updateDefaultAISettings, updateAISettings, availableModels, refreshModels, previousViewMode, navigateBack, projects } = useProject();
+  const { project, theme, setTheme, defaultAISettings, updateDefaultAISettings, updateAISettings, availableModels, refreshModels, previousViewMode, navigateBack, projects, backupProject, restoreLatestBackup, cloudSyncEnabled, setCloudSyncEnabled } = useProject();
+  const [backupList, setBackupList] = useState<Array<{ id: number; file_name: string; created_at: string; size_bytes: number }>>([]);
+  const [backupTotal, setBackupTotal] = useState(0);
+  const [backupLoading, setBackupLoading] = useState(false);
   const { confirm } = useConfirm();
   
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
@@ -91,6 +95,12 @@ export const UserSettings: React.FC = () => {
   useEffect(() => {
     if (availableModels.length === 0) handleRefreshModels();
   }, []);
+
+  useEffect(() => {
+    if (!cloudSyncEnabled) {
+      setShowCloudSyncTip(true);
+    }
+  }, [cloudSyncEnabled]);
 
    useEffect(() => {
      if (user?.role === 'admin') {
@@ -270,6 +280,21 @@ export const UserSettings: React.FC = () => {
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
+  };
+
+  const loadBackups = async () => {
+    if (!project) return;
+    setBackupLoading(true);
+    try {
+      const data = await listProjectBackupsApi(Number(project.id), 1, 20);
+      setBackupList(data.files || []);
+      setBackupTotal(data.total || 0);
+    } catch {
+      setBackupList([]);
+      setBackupTotal(0);
+    } finally {
+      setBackupLoading(false);
+    }
   };
 
   const navItem = (id: SettingsTab, label: string, icon: React.ReactNode) => (
@@ -797,19 +822,87 @@ export const UserSettings: React.FC = () => {
                      <h3 className="text-2xl font-black text-ink-900 dark:text-white font-serif italic flex items-center gap-3"><Database className="w-7 h-7 text-emerald-500" /> 数据管护与备份</h3>
                      <p className="text-[10px] text-ink-400 uppercase tracking-[0.2em]">Safe Storage & Laboratory</p>
                   </div>
+                  <div className="flex items-center justify-between bg-paper-50 dark:bg-zinc-950 p-6 rounded-[2.5rem] border border-paper-100 dark:border-zinc-800">
+                    <div className="space-y-2">
+                      <p className="text-sm font-black uppercase text-ink-900 dark:text-white">Cloud Sync</p>
+                      <p className="text-[10px] text-ink-300 dark:text-zinc-600 font-bold uppercase tracking-widest">开启后允许同步与云端备份（默认仅本地）</p>
+                    </div>
+                    <button
+                      onClick={() => setCloudSyncEnabled(!cloudSyncEnabled)}
+                      className={`px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        cloudSyncEnabled
+                          ? 'bg-emerald-500 text-white shadow-lg'
+                          : 'bg-white dark:bg-zinc-900 border border-paper-200 dark:border-zinc-800 text-ink-500'
+                      }`}
+                    >
+                      {cloudSyncEnabled ? '已开启' : '未开启'}
+                    </button>
+                  </div>
+                  {showCloudSyncTip && (
+                    <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/20">
+                      <Info className="w-4 h-4 text-amber-500 mt-0.5" />
+                      <div className="text-[10px] text-amber-700 dark:text-amber-400 font-bold leading-relaxed">
+                        当前为仅本地模式。开启云端同步后，项目快照会上传用于多端恢复。
+                      </div>
+                      <button onClick={() => setShowCloudSyncTip(false)} className="text-[9px] font-black uppercase tracking-widest text-amber-500">关闭</button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                      <div className="p-8 bg-paper-50 dark:bg-zinc-950 rounded-[2.5rem] border border-paper-100 dark:border-zinc-800 shadow-inner space-y-6 flex flex-col justify-between">
                         <div className="space-y-2"><p className="text-sm font-black uppercase text-ink-900 dark:text-white">Full Backup</p><p className="text-[10px] text-ink-300 dark:text-zinc-600 font-bold uppercase tracking-widest">全量数据 JSON 导出</p></div>
                         <button onClick={handleExportAllData} className="w-full py-4 bg-white dark:bg-zinc-900 border border-paper-200 dark:border-zinc-800 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 hover:translate-y-[-2px] transition-all"><Download className="w-4 h-4" /> Export All Data</button>
                      </div>
-                     <div className="p-8 bg-paper-50 dark:bg-zinc-950 rounded-[2.5rem] border border-paper-100 dark:border-zinc-800 shadow-inner space-y-6 flex flex-col justify-between">
-                        <div className="space-y-2"><p className="text-sm font-black uppercase text-ink-900 dark:text-white">Project Clean</p><p className="text-[10px] text-ink-300 dark:text-zinc-600 font-bold uppercase tracking-widest">清理本地未使用的资源</p></div>
-                        <button className="w-full py-4 bg-white dark:bg-zinc-900 border border-paper-200 dark:border-zinc-800 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg opacity-40 cursor-not-allowed">Run Cleanup Tool</button>
+                     <div className="p-8 bg-emerald-50/40 dark:bg-emerald-900/10 rounded-[2.5rem] border-2 border-emerald-100 dark:border-emerald-900/30 shadow-inner space-y-6 flex flex-col justify-between">
+                        <div className="space-y-2"><p className="text-sm font-black uppercase text-emerald-700 dark:text-emerald-300">Local Backup</p><p className="text-[10px] text-emerald-500/70 font-bold uppercase tracking-widest">写入本地文件作为保底备份</p></div>
+                        <button onClick={backupProject} className="w-full py-4 bg-white dark:bg-zinc-900 border-2 border-emerald-100 dark:border-emerald-900/40 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all" disabled={!cloudSyncEnabled}><Download className="w-4 h-4" /> Backup to Local Storage</button>
+                        <button
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: '确认恢复备份',
+                              description: '恢复后将覆盖本地当前项目内容，是否继续？',
+                              confirmText: '确认恢复',
+                              cancelText: '取消',
+                              tone: 'danger'
+                            });
+                            if (ok) await restoreLatestBackup();
+                          }}
+                          className="w-full py-3 bg-white/80 dark:bg-zinc-900 border border-emerald-100 dark:border-emerald-900/40 rounded-2xl text-[10px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-500 hover:text-white transition-all"
+                          disabled={!cloudSyncEnabled}
+                        >
+                          恢复最新备份
+                        </button>
                      </div>
-                     <div className="p-8 bg-rose-50/30 dark:bg-rose-950/20 rounded-[2.5rem] border-2 border-rose-100 dark:border-rose-900/30 shadow-inner space-y-6 flex flex-col justify-between">
-                        <div className="space-y-2"><p className="text-sm font-black uppercase text-rose-700 dark:text-rose-400">Nuclear Option</p><p className="text-[10px] text-rose-400/50 font-bold uppercase tracking-widest">彻底清除所有本地缓存</p></div>
-                        <button onClick={handleClearCache} className="w-full py-4 bg-white dark:bg-zinc-900 border-2 border-rose-100 dark:border-rose-900/40 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><RefreshCw className="w-4 h-4" /> Reset Application</button>
+                     <div className="p-8 bg-white dark:bg-zinc-900 rounded-[2.5rem] border border-paper-200 dark:border-zinc-800 shadow-inner space-y-6 flex flex-col">
+                        <div className="flex items-center justify-between">
+                           <div className="space-y-2">
+                             <p className="text-sm font-black uppercase text-ink-900 dark:text-white">Backup History</p>
+                             <p className="text-[10px] text-ink-300 dark:text-zinc-600 font-bold uppercase tracking-widest">最近备份记录</p>
+                           </div>
+                           <button onClick={loadBackups} className="px-4 py-2 bg-paper-100 dark:bg-zinc-800 rounded-xl text-[9px] font-black uppercase tracking-widest">刷新</button>
+                         </div>
+                         <div className="space-y-3 text-[11px]">
+                           {backupLoading && <div className="text-ink-400">加载中...</div>}
+                           {!backupLoading && backupList.length === 0 && <div className="text-ink-400">暂无备份</div>}
+                           {!backupLoading && backupList.map((item) => (
+                             <div key={item.id} className="flex items-center justify-between bg-paper-50 dark:bg-zinc-950 rounded-xl px-4 py-3">
+                               <div className="flex flex-col">
+                                 <span className="font-black text-ink-800 dark:text-zinc-100 truncate max-w-[220px]">{item.file_name}</span>
+                                 <span className="text-[9px] text-ink-400 uppercase tracking-widest">{new Date(item.created_at).toLocaleString()}</span>
+                               </div>
+                               <a href={getBackupDownloadUrl(item.id)} className="text-[10px] font-black uppercase tracking-widest text-brand-600">下载</a>
+                             </div>
+                           ))}
+                         </div>
+                        <div className="text-[9px] text-ink-300 uppercase tracking-widest">总计 {backupTotal} 条</div>
                      </div>
+                      <div className="p-8 bg-paper-50 dark:bg-zinc-950 rounded-[2.5rem] border border-paper-100 dark:border-zinc-800 shadow-inner space-y-6 flex flex-col justify-between">
+                         <div className="space-y-2"><p className="text-sm font-black uppercase text-ink-900 dark:text-white">Project Clean</p><p className="text-[10px] text-ink-300 dark:text-zinc-600 font-bold uppercase tracking-widest">清理本地未使用的资源</p></div>
+                         <button className="w-full py-4 bg-white dark:bg-zinc-900 border border-paper-200 dark:border-zinc-800 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg opacity-40 cursor-not-allowed">Run Cleanup Tool</button>
+                      </div>
+                      <div className="p-8 bg-rose-50/30 dark:bg-rose-950/20 rounded-[2.5rem] border-2 border-rose-100 dark:border-rose-900/30 shadow-inner space-y-6 flex flex-col justify-between">
+                         <div className="space-y-2"><p className="text-sm font-black uppercase text-rose-700 dark:text-rose-400">Nuclear Option</p><p className="text-[10px] text-rose-400/50 font-bold uppercase tracking-widest">彻底清除所有本地缓存</p></div>
+                         <button onClick={handleClearCache} className="w-full py-4 bg-white dark:bg-zinc-900 border-2 border-rose-100 dark:border-rose-900/40 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><RefreshCw className="w-4 h-4" /> Reset Application</button>
+                      </div>
                   </div>
                </div>
             </div>
@@ -822,3 +915,4 @@ export const UserSettings: React.FC = () => {
     </div>
   );
 };
+  const [showCloudSyncTip, setShowCloudSyncTip] = useState(false);

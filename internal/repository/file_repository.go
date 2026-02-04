@@ -15,6 +15,7 @@ type FileRepository interface {
 	ListByUserID(userID uint, page, pageSize int) ([]*model.File, int64, error)
 	ListByProjectID(projectID uint, page, pageSize int) ([]*model.File, int64, error)
 	ListByType(fileType string, page, pageSize int) ([]*model.File, int64, error)
+	GetLatestByProjectAndType(projectID uint, fileType string) (*model.File, error)
 }
 
 type fileRepository struct {
@@ -113,4 +114,15 @@ func (r *fileRepository) ListByType(fileType string, page, pageSize int) ([]*mod
 		Find(&files).Error
 
 	return files, total, err
+}
+
+func (r *fileRepository) GetLatestByProjectAndType(projectID uint, fileType string) (*model.File, error) {
+	var file model.File
+	err := r.db.Where("project_id = ? AND file_type = ?", projectID, fileType).
+		Order("created_at DESC").
+		First(&file).Error
+	if err != nil {
+		return nil, err
+	}
+	return &file, nil
 }

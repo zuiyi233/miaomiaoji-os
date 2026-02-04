@@ -8,11 +8,14 @@ import (
 	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/repository"
 	"novel-agent-os-backend/pkg/logger"
+
+	"gorm.io/gorm"
 )
 
 // ProjectService 项目服务接口
 type ProjectService interface {
 	Create(userID uint, title, genre string, tags []string, coreConflict, characterArc, ultimateValue, worldRules string, aiSettings map[string]interface{}) (*model.Project, error)
+	CreateOrUpdateSnapshot(userID uint, externalID string, snapshot map[string]interface{}, title string, aiSettings map[string]interface{}) (*model.Project, error)
 	GetByID(id uint) (*model.Project, error)
 	GetByIDWithDetails(id uint) (*ProjectDetailResult, error)
 	ListByUserID(userID uint, page, size int) ([]*model.Project, int64, error)
@@ -84,6 +87,51 @@ func (s *projectService) Create(userID uint, title, genre string, tags []string,
 		WorldRules:    worldRules,
 		AISettings:    aiSettingsJSON,
 		UserID:        userID,
+	}
+
+	if err := s.projectRepo.Create(project); err != nil {
+		return nil, err
+	}
+
+	return project, nil
+}
+
+// CreateOrUpdateSnapshot 创建或更新项目快照
+func (s *projectService) CreateOrUpdateSnapshot(userID uint, externalID string, snapshot map[string]interface{}, title string, aiSettings map[string]interface{}) (*model.Project, error) {
+	if externalID == "" {
+		return nil, errors.New("external_id required")
+	}
+
+	snapshotJSON, _ := json.Marshal(snapshot)
+	aiSettingsJSON, _ := json.Marshal(aiSettings)
+
+	project, err := s.projectRepo.FindByUserAndExternalID(userID, externalID)
+	if err == nil {
+		project.Snapshot = snapshotJSON
+		if aiSettings != nil {
+			project.AISettings = aiSettingsJSON
+		}
+		if title != "" {
+			project.Title = title
+		}
+		if err := s.projectRepo.Update(project); err != nil {
+			return nil, err
+		}
+		return project, nil
+	}
+
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	project = &model.Project{
+		Title:      title,
+		Snapshot:   snapshotJSON,
+		UserID:     userID,
+		ExternalID: &externalID,
+	}
+	if aiSettings != nil {
+		project.AISettings = aiSettingsJSON
 	}
 
 	if err := s.projectRepo.Create(project); err != nil {

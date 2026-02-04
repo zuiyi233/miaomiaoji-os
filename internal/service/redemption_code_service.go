@@ -1,6 +1,8 @@
 package service
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"math/rand"
@@ -14,7 +16,7 @@ import (
 
 // RedemptionCodeService 兑换码服务接口
 type RedemptionCodeService interface {
-	Redeem(userID uint, deviceID string, code string) (*model.RedemptionCode, int, error)
+	Redeem(payload RedeemPayload) (*model.RedemptionCode, int, error)
 	Generate(payload GenerateCodesPayload, createdBy uint) ([]*model.RedemptionCode, error)
 	List(filter repository.RedemptionCodeFilter) ([]*model.RedemptionCode, int64, error)
 	UpdateStatus(codes []string, action string, value int) error
@@ -38,6 +40,23 @@ type GenerateCodesPayload struct {
 	Source       string
 }
 
+// RedeemPayload 兑换请求最小审计字段
+type RedeemPayload struct {
+	RequestID        string
+	IdempotencyKey   string
+	UserID           uint
+	DeviceID         string
+	RedeemCode       string
+	ClientTime       string
+	ServerTime       string
+	AppID            string
+	Platform         string
+	AppVersion       string
+	ResultStatus     string
+	ResultErrorCode  string
+	EntitlementDelta map[string]interface{}
+}
+
 // NewRedemptionCodeService 创建兑换码服务实例
 func NewRedemptionCodeService(codeRepo repository.RedemptionCodeRepository) RedemptionCodeService {
 	return &redemptionCodeService{
@@ -46,8 +65,8 @@ func NewRedemptionCodeService(codeRepo repository.RedemptionCodeRepository) Rede
 }
 
 // Redeem 兑换码校验并记录使用
-func (s *redemptionCodeService) Redeem(userID uint, deviceID string, code string) (*model.RedemptionCode, int, error) {
-	cleanCode := strings.TrimSpace(strings.ToUpper(code))
+func (s *redemptionCodeService) Redeem(payload RedeemPayload) (*model.RedemptionCode, int, error) {
+	cleanCode := strings.TrimSpace(strings.ToUpper(payload.RedeemCode))
 	if cleanCode == "" {
 		return nil, 0, errors.New("empty code")
 	}
@@ -69,8 +88,8 @@ func (s *redemptionCodeService) Redeem(userID uint, deviceID string, code string
 		return nil, 0, errors.New("code depleted")
 	}
 
-	if userID > 0 {
-		used, err := s.codeRepo.CountUserUses(item.ID, userID)
+	if payload.UserID > 0 {
+		used, err := s.codeRepo.CountUserUses(item.ID, payload.UserID)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -79,10 +98,33 @@ func (s *redemptionCodeService) Redeem(userID uint, deviceID string, code string
 		}
 	}
 
+	serverTime := payload.ServerTime
+	if serverTime == "" {
+		serverTime = time.Now().UTC().Format(time.RFC3339)
+	}
+	codeHash := ""
+	if cleanCode != "" {
+		sum := sha256.Sum256([]byte(cleanCode))
+		codeHash = hex.EncodeToString(sum[:])
+	}
+	entitlementJSON, _ := json.Marshal(payload.EntitlementDelta)
+
 	useRecord := &model.RedemptionCodeUse{
-		CodeID:   item.ID,
-		UserID:   userID,
-		DeviceID: deviceID,
+		RequestID:        payload.RequestID,
+		IdempotencyKey:   payload.IdempotencyKey,
+		CodeID:           item.ID,
+		UserID:           payload.UserID,
+		DeviceID:         payload.DeviceID,
+		RedeemCode:       cleanCode,
+		CodeHash:         codeHash,
+		ClientTime:       payload.ClientTime,
+		ServerTime:       serverTime,
+		AppID:            payload.AppID,
+		Platform:         payload.Platform,
+		AppVersion:       payload.AppVersion,
+		ResultStatus:     payload.ResultStatus,
+		ResultErrorCode:  payload.ResultErrorCode,
+		EntitlementDelta: entitlementJSON,
 	}
 	if err := s.codeRepo.RecordUse(useRecord); err != nil {
 		return nil, 0, err

@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"novel-agent-os-backend/internal/model"
@@ -14,12 +17,14 @@ import (
 // ProjectHandler 项目处理器
 type ProjectHandler struct {
 	projectService service.ProjectService
+	fileService    service.FileService
 }
 
 // NewProjectHandler 创建项目处理器
-func NewProjectHandler(projectService service.ProjectService) *ProjectHandler {
+func NewProjectHandler(projectService service.ProjectService, fileService service.FileService) *ProjectHandler {
 	return &ProjectHandler{
 		projectService: projectService,
+		fileService:    fileService,
 	}
 }
 
@@ -47,9 +52,26 @@ type UpdateProjectRequest struct {
 	AISettings    map[string]interface{} `json:"ai_settings"`
 }
 
+// UpsertSnapshotRequest 本地项目快照同步请求
+type UpsertSnapshotRequest struct {
+	ExternalID string                 `json:"external_id" binding:"required,max=64"`
+	Title      string                 `json:"title" binding:"omitempty,max=200"`
+	AISettings map[string]interface{} `json:"ai_settings"`
+	Snapshot   map[string]interface{} `json:"snapshot" binding:"required"`
+}
+
+// BackupSnapshotRequest 项目备份请求
+type BackupSnapshotRequest struct {
+	ExternalID string                 `json:"external_id" binding:"required,max=64"`
+	Title      string                 `json:"title" binding:"omitempty,max=200"`
+	AISettings map[string]interface{} `json:"ai_settings"`
+	Snapshot   map[string]interface{} `json:"snapshot" binding:"required"`
+}
+
 // ProjectResponse 项目响应
 type ProjectResponse struct {
 	ID            uint                   `json:"id"`
+	ExternalID    *string                `json:"external_id,omitempty"`
 	Title         string                 `json:"title"`
 	Genre         string                 `json:"genre"`
 	Tags          []string               `json:"tags"`
@@ -58,6 +80,7 @@ type ProjectResponse struct {
 	UltimateValue string                 `json:"ultimate_value"`
 	WorldRules    string                 `json:"world_rules"`
 	AISettings    map[string]interface{} `json:"ai_settings"`
+	Snapshot      map[string]interface{} `json:"snapshot,omitempty"`
 	UserID        uint                   `json:"user_id"`
 	CreatedAt     string                 `json:"created_at"`
 	UpdatedAt     string                 `json:"updated_at"`
@@ -111,10 +134,20 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 		return
 	}
 
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "未登录")
+		return
+	}
+
 	project, err := h.projectService.GetByID(id)
 	if err != nil {
 		logger.Error("Get project failed", logger.Err(err), logger.Uint("project_id", id))
 		response.Fail(c, errors.CodeNotFound, "项目不存在")
+		return
+	}
+	if project.UserID != userID {
+		response.Fail(c, errors.CodeForbidden, "无权限访问")
 		return
 	}
 
@@ -165,9 +198,25 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		return
 	}
 
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "未登录")
+		return
+	}
+
 	var req UpdateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, errors.CodeInvalidParams, err.Error())
+		return
+	}
+
+	project, err := h.projectService.GetByID(id)
+	if err != nil {
+		response.Fail(c, errors.CodeNotFound, "项目不存在")
+		return
+	}
+	if project.UserID != userID {
+		response.Fail(c, errors.CodeForbidden, "无权限访问")
 		return
 	}
 
@@ -198,7 +247,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		updates["ai_settings"] = req.AISettings
 	}
 
-	project, err := h.projectService.Update(id, updates)
+	project, err = h.projectService.Update(id, updates)
 	if err != nil {
 		if err.Error() == "project not found" {
 			response.Fail(c, errors.CodeNotFound, "项目不存在")
@@ -212,11 +261,136 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 	response.SuccessWithData(c, h.toProjectResponse(project))
 }
 
+// UpsertSnapshot 本地项目快照同步
+func (h *ProjectHandler) UpsertSnapshot(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "未登录")
+		return
+	}
+
+	var req UpsertSnapshotRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, errors.CodeInvalidParams, err.Error())
+		return
+	}
+
+	project, err := h.projectService.CreateOrUpdateSnapshot(userID, req.ExternalID, req.Snapshot, req.Title, req.AISettings)
+	if err != nil {
+		logger.Error("Upsert project snapshot failed", logger.Err(err), logger.Uint("user_id", userID))
+		response.Fail(c, errors.CodeDatabaseError, "保存项目快照失败")
+		return
+	}
+
+	response.SuccessWithData(c, h.toProjectResponse(project))
+}
+
+// BackupSnapshot 备份项目到本地文件存储
+func (h *ProjectHandler) BackupSnapshot(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "未登录")
+		return
+	}
+
+	var req BackupSnapshotRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, errors.CodeInvalidParams, err.Error())
+		return
+	}
+
+	project, err := h.projectService.CreateOrUpdateSnapshot(userID, req.ExternalID, req.Snapshot, req.Title, req.AISettings)
+	if err != nil {
+		logger.Error("Backup project snapshot failed", logger.Err(err), logger.Uint("user_id", userID))
+		response.Fail(c, errors.CodeDatabaseError, "保存项目快照失败")
+		return
+	}
+
+	data, err := json.Marshal(req.Snapshot)
+	if err != nil {
+		response.Fail(c, errors.CodeInvalidParams, "项目快照格式错误")
+		return
+	}
+
+	backupName := fmt.Sprintf("project_%s_%s.json", req.ExternalID, time.Now().Format("20060102_150405"))
+	storageKey := fmt.Sprintf("backups/%d/%s/%s", userID, req.ExternalID, backupName)
+	file := &model.File{
+		FileName:    backupName,
+		FileType:    "backup",
+		ContentType: "application/json",
+		StorageKey:  storageKey,
+		UserID:      userID,
+		ProjectID:   &project.ID,
+		SizeBytes:   int64(len(data)),
+	}
+
+	if err := h.fileService.CreateFile(file, bytes.NewReader(data)); err != nil {
+		logger.Error("Backup file save failed", logger.Err(err), logger.Uint("user_id", userID))
+		response.Fail(c, errors.CodeFileError, "备份写入失败")
+		return
+	}
+
+	response.SuccessWithData(c, gin.H{
+		"file_id":     file.ID,
+		"file_name":   file.FileName,
+		"storage_key": file.StorageKey,
+		"project_id":  project.ID,
+	})
+}
+
+// GetLatestBackup 获取项目最新备份文件信息
+func (h *ProjectHandler) GetLatestBackup(c *gin.Context) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "未登录")
+		return
+	}
+
+	projectID, err := parseUintParam(c, "project_id")
+	if err != nil {
+		response.Fail(c, errors.CodeInvalidParams, "无效的项目ID")
+		return
+	}
+
+	project, err := h.projectService.GetByID(projectID)
+	if err != nil {
+		response.Fail(c, errors.CodeNotFound, "项目不存在")
+		return
+	}
+	if project.UserID != userID {
+		response.Fail(c, errors.CodeForbidden, "无权限访问")
+		return
+	}
+
+	file, err := h.fileService.GetLatestBackupByProject(projectID)
+	if err != nil {
+		response.Fail(c, errors.CodeNotFound, "未找到备份")
+		return
+	}
+
+	response.SuccessWithData(c, file)
+}
+
 // Delete 删除项目
 func (h *ProjectHandler) Delete(c *gin.Context) {
 	id, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "无效的项目ID")
+		return
+	}
+
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "未登录")
+		return
+	}
+	project, err := h.projectService.GetByID(id)
+	if err != nil {
+		response.Fail(c, errors.CodeNotFound, "项目不存在")
+		return
+	}
+	if project.UserID != userID {
+		response.Fail(c, errors.CodeForbidden, "无权限访问")
 		return
 	}
 
@@ -238,6 +412,21 @@ func (h *ProjectHandler) Export(c *gin.Context) {
 	id, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "无效的项目ID")
+		return
+	}
+
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "未登录")
+		return
+	}
+	project, err := h.projectService.GetByID(id)
+	if err != nil {
+		response.Fail(c, errors.CodeNotFound, "项目不存在")
+		return
+	}
+	if project.UserID != userID {
+		response.Fail(c, errors.CodeForbidden, "无权限访问")
 		return
 	}
 
@@ -266,8 +455,15 @@ func (h *ProjectHandler) toProjectResponse(project *model.Project) *ProjectRespo
 		json.Unmarshal(project.AISettings, &aiSettings)
 	}
 
+	// 解析快照
+	var snapshot map[string]interface{}
+	if len(project.Snapshot) > 0 {
+		json.Unmarshal(project.Snapshot, &snapshot)
+	}
+
 	return &ProjectResponse{
 		ID:            project.ID,
+		ExternalID:    project.ExternalID,
 		Title:         project.Title,
 		Genre:         project.Genre,
 		Tags:          tags,
@@ -276,6 +472,7 @@ func (h *ProjectHandler) toProjectResponse(project *model.Project) *ProjectRespo
 		UltimateValue: project.UltimateValue,
 		WorldRules:    project.WorldRules,
 		AISettings:    aiSettings,
+		Snapshot:      snapshot,
 		UserID:        project.UserID,
 		CreatedAt:     project.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:     project.UpdatedAt.Format("2006-01-02 15:04:05"),

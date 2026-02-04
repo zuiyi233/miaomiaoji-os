@@ -319,7 +319,7 @@ const InspirationCard: React.FC = () => {
     if (!force && disabledUntil && disabledUntil > now) return;
     setLoading(true);
     try {
-      const result = await fetchInternetInspiration(DEFAULT_AI_SETTINGS);
+      const result = await fetchInternetInspiration();
       setInspiration(result);
       localStorage.setItem(INSPIRATION_CACHE_KEY, JSON.stringify(result));
       localStorage.setItem(INSPIRATION_FETCH_KEY, Date.now().toString());

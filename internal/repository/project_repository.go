@@ -8,6 +8,7 @@ import (
 type ProjectRepository interface {
 	Create(project *model.Project) error
 	FindByID(id uint) (*model.Project, error)
+	FindByUserAndExternalID(userID uint, externalID string) (*model.Project, error)
 	FindByUserID(userID uint, page, size int) ([]*model.Project, int64, error)
 	Update(project *model.Project) error
 	Delete(id uint) error
@@ -34,6 +35,15 @@ func (r *projectRepository) Create(project *model.Project) error {
 func (r *projectRepository) FindByID(id uint) (*model.Project, error) {
 	var project model.Project
 	if err := r.BaseRepository.db.First(&project, id).Error; err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
+// FindByUserAndExternalID 根据用户ID与外部ID查找项目
+func (r *projectRepository) FindByUserAndExternalID(userID uint, externalID string) (*model.Project, error) {
+	var project model.Project
+	if err := r.BaseRepository.db.Where("user_id = ? AND external_id = ?", userID, externalID).First(&project).Error; err != nil {
 		return nil, err
 	}
 	return &project, nil

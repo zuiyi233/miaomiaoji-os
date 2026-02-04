@@ -68,6 +68,7 @@ export const AuthScreen: React.FC = () => {
                   onChange={e => setUsername(e.target.value)}
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-zinc-950 rounded-2xl border-none outline-none focus:ring-2 focus:ring-brand-200 dark:focus:ring-brand-900/30 text-ink-900 dark:text-zinc-100 font-bold transition-all"
                   placeholder="请输入用户名"
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -81,6 +82,7 @@ export const AuthScreen: React.FC = () => {
                   onChange={e => setPassword(e.target.value)}
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-zinc-950 rounded-2xl border-none outline-none focus:ring-2 focus:ring-brand-200 dark:focus:ring-brand-900/30 text-ink-900 dark:text-zinc-100 font-bold transition-all"
                   placeholder="请输入密码"
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                 />
               </div>
             </div>
@@ -95,6 +97,7 @@ export const AuthScreen: React.FC = () => {
                     onChange={e => setInviteCode(e.target.value.toUpperCase())}
                     className="w-full pl-12 pr-4 py-4 bg-brand-50/50 dark:bg-zinc-950 rounded-2xl border border-brand-100 dark:border-zinc-800 outline-none focus:ring-2 focus:ring-brand-200 dark:focus:ring-brand-900/30 text-ink-900 dark:text-zinc-100 font-bold transition-all placeholder:text-brand-300"
                     placeholder="XXXX-XXXX"
+                    autoComplete="off"
                   />
                 </div>
               </div>
