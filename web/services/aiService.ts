@@ -11,6 +11,12 @@ export interface AIResponse {
   raw?: any;
 }
 
+export type WorkflowPayload = {
+  provider: string;
+  path: string;
+  body: string;
+};
+
 const CACHE_KEY_PREFIX = 'novel_agent_models_';
 const CACHE_DURATION = 300 * 60 * 60 * 1000; // 300 hours as per request
 
@@ -159,6 +165,49 @@ export const generateJSON = async (prompt: string, systemInstruction: string, sc
       return null;
     }
   }
+};
+
+export const buildWorkflowPayload = (
+  prompt: string,
+  systemInstruction: string,
+  settings: AISettings,
+  schema?: any
+): WorkflowPayload => {
+  if (settings.provider === 'gemini') {
+    const modelId = settings.model || 'gemini-3-flash-preview';
+    const body = JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: settings.temperature,
+        maxOutputTokens: settings.maxOutputTokens,
+        ...(schema
+          ? { responseMimeType: 'application/json', responseSchema: schema }
+          : {}),
+      },
+      systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+    });
+    return {
+      provider: 'gemini',
+      path: `v1beta/models/${modelId}:generateContent`,
+      body,
+    };
+  }
+
+  const jsonPrompt = schema ? `${prompt}\n\n请严格按此 JSON 结构返回：${JSON.stringify(schema)}` : prompt;
+  const body = JSON.stringify({
+    model: settings.model,
+    messages: [
+      { role: 'system', content: systemInstruction },
+      { role: 'user', content: jsonPrompt },
+    ],
+    temperature: settings.temperature,
+  });
+
+  return {
+    provider: settings.provider,
+    path: 'v1/chat/completions',
+    body,
+  };
 };
 
 export async function* generateTextStream(

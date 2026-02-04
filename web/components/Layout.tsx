@@ -10,7 +10,6 @@ import { NovelWizard } from './NovelWizard';
 import { PluginManager } from './PluginManager';
 import { WorkflowSessions } from './WorkflowSessions';
 import { WorkflowDetail } from './WorkflowDetail';
-import { ConnectionState } from '../services/sseClient';
 import { FileCenter } from './FileCenter';
 import { CorpusCenter } from './CorpusCenter';
 import { SettlementCenter } from './SettlementCenter';
@@ -29,9 +28,11 @@ const LayoutContent: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDraggingToolbar, setIsDraggingToolbar] = useState(false);
+  const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
   const TOOLBAR_STORAGE_KEY = 'layout.floatingToolbar.position';
+  const TOOLBAR_COLLAPSE_KEY = 'layout.floatingToolbar.collapsed';
   const TOOLBAR_PADDING = 16;
   const navigate = useNavigate();
   const location = useLocation();
@@ -83,6 +84,12 @@ const LayoutContent: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const raw = localStorage.getItem(TOOLBAR_COLLAPSE_KEY);
+    if (!raw) return;
+    setIsToolbarCollapsed(raw === 'true');
+  }, []);
+
+  useEffect(() => {
     if (!toolbarRef.current) return;
     if (!toolbarPosition) {
       setToolbarPosition(getDefaultToolbarPosition());
@@ -98,6 +105,10 @@ const LayoutContent: React.FC = () => {
     if (!toolbarPosition) return;
     localStorage.setItem(TOOLBAR_STORAGE_KEY, JSON.stringify(toolbarPosition));
   }, [toolbarPosition]);
+
+  useEffect(() => {
+    localStorage.setItem(TOOLBAR_COLLAPSE_KEY, String(isToolbarCollapsed));
+  }, [isToolbarCollapsed]);
 
   useEffect(() => {
     if (!isDraggingToolbar) return;
@@ -291,38 +302,69 @@ const LayoutContent: React.FC = () => {
               if (!touch) return;
               startToolbarDrag(touch.clientX, touch.clientY);
             }}
-            className={`flex items-center gap-1 p-1.5 bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl border border-paper-200 dark:border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.08)] pointer-events-auto transition-all duration-500 cursor-grab active:cursor-grabbing ${viewMode === ViewMode.WRITER ? 'opacity-40 hover:opacity-100' : 'opacity-100'}`}
+            className={`flex items-center ${isToolbarCollapsed ? 'gap-1 p-1 rounded-full' : 'gap-1.5 p-1.5 rounded-2xl'} bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl border border-paper-200 dark:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.08)] pointer-events-auto transition-all duration-500 cursor-grab active:cursor-grabbing ${viewMode === ViewMode.WRITER ? 'opacity-40 hover:opacity-100' : 'opacity-100'}`}
           >
-             
-             {/* 返回仪表盘按钮 (仅在进入项目后显示) */}
-              {activeProjectId && (
-                <button 
-                  onClick={exitProject}
-                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-paper-100 dark:hover:bg-zinc-800 rounded-xl transition-all group text-ink-500 dark:text-zinc-400"
-                  title="返回仪表盘"
-                >
-                  <LayoutDashboard className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] font-black uppercase tracking-widest hidden sm:block">Dashboard</span>
-               </button>
-             )}
+            
+              {isToolbarCollapsed ? (
+                <>
+                  {activeProjectId && (
+                    <button
+                      onClick={exitProject}
+                      className="p-2 rounded-full hover:bg-paper-100 dark:hover:bg-zinc-800 transition-all text-ink-500 dark:text-zinc-400"
+                      title="返回仪表盘"
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setViewMode(ViewMode.SETTINGS)}
+                    className={`p-2 rounded-full transition-all ${viewMode === ViewMode.SETTINGS ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md' : 'hover:bg-paper-50 dark:hover:bg-zinc-800 text-ink-500 dark:text-zinc-400'}`}
+                    title="设置中心"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* 返回仪表盘按钮 (仅在进入项目后显示) */}
+                  {activeProjectId && (
+                    <button
+                      onClick={exitProject}
+                      className="flex items-center gap-2 px-2.5 py-1 hover:bg-paper-100 dark:hover:bg-zinc-800 rounded-xl transition-all group text-ink-500 dark:text-zinc-400"
+                      title="返回仪表盘"
+                    >
+                      <LayoutDashboard className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                      <span className="text-[9px] font-black uppercase tracking-widest hidden sm:block">Dashboard</span>
+                    </button>
+                  )}
 
-              <div className="w-px h-4 bg-paper-200 dark:bg-zinc-800 mx-1"></div>
+                  <div className="w-px h-4 bg-paper-200 dark:bg-zinc-800 mx-1"></div>
 
-             {/* 设置中心入口 */}
-              <button 
-                onClick={() => setViewMode(ViewMode.SETTINGS)} 
-                className={`flex items-center gap-2.5 pl-3 pr-2 py-1.5 rounded-xl transition-all group ${viewMode === ViewMode.SETTINGS ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md' : 'hover:bg-paper-50 dark:hover:bg-zinc-800'}`}
+                  {/* 设置中心入口 */}
+                  <button
+                    onClick={() => setViewMode(ViewMode.SETTINGS)}
+                    className={`flex items-center gap-2 pl-2.5 pr-2 py-1 rounded-xl transition-all group ${viewMode === ViewMode.SETTINGS ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-md' : 'hover:bg-paper-50 dark:hover:bg-zinc-800'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[8px] font-black transition-colors ${viewMode === ViewMode.SETTINGS ? 'bg-white/20 dark:bg-black/20' : 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-ink-900'}`}>
+                        {user?.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex flex-col items-start leading-none mr-1">
+                        <span className="text-[9px] font-black uppercase tracking-widest">{user?.username}</span>
+                        <span className="text-[8px] font-medium opacity-50 uppercase">{user?.role}</span>
+                      </div>
+                    </div>
+                    <Settings className={`w-3.5 h-3.5 opacity-40 group-hover:opacity-100 group-hover:rotate-90 transition-all ${viewMode === ViewMode.SETTINGS ? 'opacity-100' : ''}`} />
+                  </button>
+                </>
+              )}
+
+              <button
+                onClick={() => setIsToolbarCollapsed((prev) => !prev)}
+                className="p-2 rounded-full hover:bg-paper-100 dark:hover:bg-zinc-800 transition-all text-ink-500 dark:text-zinc-400"
+                title={isToolbarCollapsed ? '展开浮窗' : '收起浮窗'}
               >
-                 <div className="flex items-center gap-2">
-                   <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-black transition-colors ${viewMode === ViewMode.SETTINGS ? 'bg-white/20 dark:bg-black/20' : 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-ink-900'}`}>
-                     {user?.username.charAt(0).toUpperCase()}
-                   </div>
-                   <div className="flex flex-col items-start leading-none mr-2">
-                     <span className="text-[10px] font-black uppercase tracking-widest">{user?.username}</span>
-                     <span className="text-[8px] font-medium opacity-50 uppercase">{user?.role}</span>
-                   </div>
-                 </div>
-                 <Settings className={`w-3.5 h-3.5 opacity-40 group-hover:opacity-100 group-hover:rotate-90 transition-all ${viewMode === ViewMode.SETTINGS ? 'opacity-100' : ''}`} />
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isToolbarCollapsed ? 'rotate-0' : 'rotate-180'}`} />
               </button>
            </div>
         </div>
@@ -375,10 +417,6 @@ const LayoutContent: React.FC = () => {
                 path="/workflows"
                 element={
                   <WorkflowSessions
-                    sessions={[
-                      { id: '1', title: '世界观生成', mode: 'Normal', status: 'running', updatedAt: '刚刚' },
-                      { id: '2', title: '章节润色', mode: 'Batch', status: 'success', updatedAt: '2 小时前' },
-                    ]}
                     onSelect={(id) => {
                       selectSession(id);
                       setViewMode(ViewMode.WORKFLOW_DETAIL);
@@ -391,7 +429,6 @@ const LayoutContent: React.FC = () => {
                 element={
                   <WorkflowDetail
                     sessionId={activeSessionId || '未知'}
-                    connectionState={'disconnected' as ConnectionState}
                     onBack={() => {
                       setViewMode(ViewMode.WORKFLOWS);
                     }}

@@ -9,7 +9,9 @@ import {
   MoreVertical, Edit3, SortAsc, SortDesc, FileJson, FileText as FileTextIcon, Type, Mic2, RefreshCw, PlusCircle
 } from 'lucide-react';
 import { EntityType, StoryEntity, ViewMode } from '../types';
-import { generateJSON, generateText, refineNovelCore } from '../services/aiService';
+import { buildWorkflowPayload, generateJSON, refineNovelCore } from '../services/aiService';
+import { runWorldWorkflowApi } from '../services/workflowApi';
+import { toSnapshotPayload, upsertProjectSnapshotApi } from '../services/projectApi';
 import { GraphVisualizer } from './GraphVisualizer';
 import { EntityCard } from './EntityCard';
 
@@ -91,6 +93,16 @@ export const WorldBible: React.FC = () => {
     setLastCreatedId(newId);
   };
 
+  const ensureProjectId = async (): Promise<number | null> => {
+    if (!project) return null;
+    try {
+      const dto = await upsertProjectSnapshotApi(toSnapshotPayload(project, project.id));
+      return dto.id || null;
+    } catch (e) {
+      return null;
+    }
+  };
+
   const handleAICreate = async () => {
     if (!aiBrief.trim() || !isAICreating || !hasAIAccess) return;
     setIsGeneratingDraft(true);
@@ -107,12 +119,32 @@ export const WorldBible: React.FC = () => {
       required: ['title', 'subtitle', 'content', 'tags']
     };
 
-    const draft = await generateJSON(
-      `根据用户描述构思一个${isAICreating}设定：${aiBrief}。如果是角色，请包含语调风格。`,
-      `你是一位创意非凡的小说设定专家。书名：${project.title}`,
-      schema,
-      project.aiSettings
-    );
+    const prompt = `根据用户描述构思一个${isAICreating}设定：${aiBrief}。如果是角色，请包含语调风格。`;
+    const systemInstruction = `你是一位创意非凡的小说设定专家。书名：${project.title}`;
+
+    let draft: any = null;
+    try {
+      const projectId = await ensureProjectId();
+      if (!projectId) {
+        throw new Error('项目未同步到后端');
+      }
+      const payload = buildWorkflowPayload(prompt, systemInstruction, project.aiSettings, schema);
+      const result = await runWorldWorkflowApi({
+        project_id: projectId,
+        title: `世界观生成 · ${isAICreating}`,
+        step_title: `孵化${isAICreating}`,
+        provider: payload.provider,
+        path: payload.path,
+        body: payload.body,
+      });
+      try {
+        draft = JSON.parse(result.content || '{}');
+      } catch {
+        draft = null;
+      }
+    } catch (e) {
+      draft = await generateJSON(prompt, systemInstruction, schema, project.aiSettings);
+    }
 
     if (draft) {
       const newId = `e${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -135,7 +167,48 @@ export const WorldBible: React.FC = () => {
     if (ok) {
       setIsRefiningCore(true);
       try {
-        const refined = await refineNovelCore(project);
+        const settings = project.aiSettings;
+        const systemInstruction = `你是一位世界顶尖的小说架构师和文学顾问。你的任务是分析现有的小说草案，并深度完善其核心世界观设定。`;
+        const context = `书名：${project.title}\n类型：${project.genre || '未定义'}\n核心冲突：${project.coreConflict || '无'}\n世界规则：${project.worldRules || '无'}`;
+        const prompt = `分析以上信息，完善以下核心要素：\n${context}`;
+        const schema = {
+          type: 'object',
+          properties: {
+            genre: { type: 'string' },
+            tags: { type: 'array', items: { type: 'string' } },
+            coreConflict: { type: 'string' },
+            characterArc: { type: 'string' },
+            ultimateValue: { type: 'string' },
+            worldRules: { type: 'string' },
+            characterCore: { type: 'string' },
+            symbolSettings: { type: 'string' }
+          },
+          required: ['coreConflict', 'characterArc', 'worldRules', 'characterCore']
+        };
+
+        let refined: any = null;
+        try {
+          const projectId = await ensureProjectId();
+          if (!projectId) {
+            throw new Error('项目未同步到后端');
+          }
+          const payload = buildWorkflowPayload(prompt, systemInstruction, settings, schema);
+          const result = await runWorldWorkflowApi({
+            project_id: projectId,
+            title: '世界观生成 · 核心精修',
+            step_title: '核心精修',
+            provider: payload.provider,
+            path: payload.path,
+            body: payload.body,
+          });
+          try {
+            refined = JSON.parse(result.content || '{}');
+          } catch {
+            refined = null;
+          }
+        } catch (e) {
+          refined = await refineNovelCore(project);
+        }
         if (refined) {
           updateNovelDetails(refined);
           alert("核心设定已完善！");

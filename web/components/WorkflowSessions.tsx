@@ -1,5 +1,7 @@
-import React, { useMemo } from 'react';
-import { Activity, CheckCircle2, Clock, Layers, XCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Activity, CheckCircle2, Clock, Layers, Loader2, XCircle } from 'lucide-react';
+import { listSessionsApi, listSessionsByProjectApi } from '../services/workflowApi';
+import { useProject } from '../contexts/ProjectContext';
 
 type SessionStatus = 'running' | 'success' | 'failed' | 'canceled';
 
@@ -12,7 +14,6 @@ interface SessionItem {
 }
 
 interface WorkflowSessionsProps {
-  sessions: SessionItem[];
   onSelect: (sessionId: string) => void;
 }
 
@@ -39,7 +40,44 @@ const STATUS_META: Record<SessionStatus, { label: string; className: string; ico
   },
 };
 
-export const WorkflowSessions: React.FC<WorkflowSessionsProps> = ({ sessions, onSelect }) => {
+export const WorkflowSessions: React.FC<WorkflowSessionsProps> = ({ onSelect }) => {
+  const { activeProjectId } = useProject();
+  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const projectId = Number(activeProjectId);
+        const result = Number.isFinite(projectId) && projectId > 0
+          ? await listSessionsByProjectApi(projectId, 1, 50)
+          : await listSessionsApi(1, 50);
+        const items: SessionItem[] = (result.sessions || []).map((item) => {
+          const updatedAt = item.updated_at || item.created_at;
+          const updatedMs = updatedAt ? new Date(updatedAt).getTime() : 0;
+          const isRecent = updatedMs > 0 && Date.now() - updatedMs < 5 * 60 * 1000;
+          return {
+            id: String(item.id),
+            title: item.title || '未命名会话',
+            mode: item.mode || 'Normal',
+            status: isRecent ? 'running' : 'success',
+            updatedAt: updatedAt || '--',
+          };
+        });
+        setSessions(items);
+      } catch (err: any) {
+        setError(err?.message || '加载会话失败');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSessions();
+  }, [activeProjectId]);
+
   const items = useMemo(() => sessions, [sessions]);
 
   return (
@@ -62,11 +100,19 @@ export const WorkflowSessions: React.FC<WorkflowSessionsProps> = ({ sessions, on
             <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-ink-400 dark:text-zinc-500">
               <Activity className="w-3.5 h-3.5" /> 最近会话
             </div>
-            <div className="text-[10px] text-ink-300 dark:text-zinc-600">仅展示骨架</div>
+            <div className="text-[10px] text-ink-300 dark:text-zinc-600">
+              {isLoading ? '加载中' : `${items.length} 条记录`}
+            </div>
           </div>
 
           <div className="divide-y divide-paper-100 dark:divide-zinc-800">
-            {items.length === 0 ? (
+            {isLoading ? (
+              <div className="px-6 py-12 text-center text-sm text-ink-400 dark:text-zinc-500 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> 加载会话中
+              </div>
+            ) : error ? (
+              <div className="px-6 py-12 text-center text-sm text-rose-500">{error}</div>
+            ) : items.length === 0 ? (
               <div className="px-6 py-12 text-center text-sm text-ink-400 dark:text-zinc-500">暂无会话记录</div>
             ) : (
               items.map((session) => {

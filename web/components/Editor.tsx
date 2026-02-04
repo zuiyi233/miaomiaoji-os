@@ -3,6 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useProject } from '../contexts/ProjectContext';
 import { useAuth } from '../contexts/AuthContext';
 import { generateStoryContent, generateTimeSuggestions } from '../services/geminiService';
+import { buildWorkflowPayload, generateText } from '../services/aiService';
+import { runPolishWorkflowApi } from '../services/workflowApi';
+import { toSnapshotPayload, upsertProjectSnapshotApi } from '../services/projectApi';
 import { callPluginAction, executePluginActions } from '../services/pluginService';
 import { AgentWriter } from './AgentWriter';
 import { 
@@ -13,10 +16,11 @@ import {
 import { ViewMode } from '../types';
 
 export const Editor: React.FC = () => {
-  const { activeDocumentId, project, updateDocument, updateEntity, toggleAISidebar, addBookmark, deleteBookmark, setViewMode } = useProject();
+  const { activeDocumentId, project, updateDocument, updateEntity, toggleAISidebar, addBookmark, deleteBookmark, setViewMode, selectSession } = useProject();
   const { hasAIAccess } = useAuth();
   const [content, setContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPolishing, setIsPolishing] = useState(false);
   const [isPluginRunning, setIsPluginRunning] = useState<string | null>(null);
   const [pluginError, setPluginError] = useState<string | null>(null);
   const [showBookmarks, setShowBookmarks] = useState(false);
@@ -76,6 +80,54 @@ export const Editor: React.FC = () => {
     }
     setIsGenerating(false);
     setCustomPrompt('');
+  };
+
+  const ensureProjectId = async (): Promise<number | null> => {
+    if (!project) return null;
+    try {
+      const dto = await upsertProjectSnapshotApi(toSnapshotPayload(project, project.id));
+      return dto.id || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handlePolishChapter = async () => {
+    if (!activeDoc || !project || !hasAIAccess) return;
+    if (!content.trim()) return;
+    setIsPolishing(true);
+    try {
+      const systemInstruction = '你是一位资深文学编辑，请在不改变核心情节的前提下润色文本，提升文采与节奏。只输出润色后的正文。';
+      const prompt = `请润色以下章节内容：\n\n${content}`;
+      let polished = '';
+
+      try {
+        const projectId = await ensureProjectId();
+        if (!projectId) throw new Error('项目未同步到后端');
+        const payload = buildWorkflowPayload(prompt, systemInstruction, project.aiSettings);
+        const result = await runPolishWorkflowApi({
+          project_id: projectId,
+          title: `章节润色 · ${activeDoc.title}`,
+          step_title: '润色输出',
+          provider: payload.provider,
+          path: payload.path,
+          body: payload.body,
+        });
+        polished = result.content || '';
+        if (result.session?.id) {
+          selectSession(String(result.session.id));
+        }
+      } catch {
+        polished = await generateText(prompt, systemInstruction, project.aiSettings);
+      }
+
+      if (polished.trim()) {
+        setContent(polished.trim());
+        updateDocument(activeDoc.id, { content: polished.trim() });
+      }
+    } finally {
+      setIsPolishing(false);
+    }
   };
 
   const handleAgentAppend = (text: string) => {
@@ -421,6 +473,13 @@ export const Editor: React.FC = () => {
                               <button onClick={() => setWordCountRequest('finish')} className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all ${wordCountRequest === 'finish' ? 'bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900' : 'text-ink-400 dark:text-zinc-500 hover:text-ink-900 dark:hover:text-zinc-200'}`}>章节收尾</button>
                           </div>
                           
+                          <button 
+                            onClick={handlePolishChapter}
+                            disabled={isPolishing}
+                            className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg disabled:opacity-60"
+                          >
+                            {isPolishing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />} 润色
+                          </button>
                           <button 
                             onClick={() => setShowAgentWriter(true)} 
                             className="flex items-center gap-1.5 px-3 py-1 bg-brand-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-brand-500 transition-all shadow-lg"

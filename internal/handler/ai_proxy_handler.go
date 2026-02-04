@@ -44,7 +44,7 @@ func (h *AIProxyHandler) Proxy(c *gin.Context) {
 		return
 	}
 
-	providerCfg, err := h.configService.GetProviderConfig(req.Provider)
+	providerCfg, err := h.configService.GetProviderConfigRaw(req.Provider)
 	if err != nil {
 		response.Fail(c, errors.CodeNotFound, "provider not found")
 		return

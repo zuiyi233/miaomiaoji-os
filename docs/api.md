@@ -927,6 +927,62 @@
 
 ---
 
+## 工作流接口（Workflows）
+
+### 世界观生成
+- **URL**: `POST /api/v1/workflows/world`
+- **描述**: 触发世界观生成工作流，自动创建会话与步骤，并通过 SSE 推送内容
+- **认证**: 是（且需有效 AI 权限）
+- **请求体**:
+```json
+{
+  "project_id": 1,
+  "session_id": 0,
+  "title": "世界观生成",
+  "step_title": "世界观生成",
+  "provider": "gemini",
+  "path": "v1beta/models/gemini-3-flash-preview:generateContent",
+  "body": "{...}"
+}
+```
+- **响应（data）**:
+```json
+{
+  "session": {},
+  "step": {},
+  "content": "...",
+  "raw": {}
+}
+```
+
+### 章节润色
+- **URL**: `POST /api/v1/workflows/polish`
+- **描述**: 触发章节润色工作流，自动创建会话与步骤，并通过 SSE 推送内容
+- **认证**: 是（且需有效 AI 权限）
+- **请求体**:
+```json
+{
+  "project_id": 1,
+  "session_id": 0,
+  "title": "章节润色",
+  "step_title": "章节润色",
+  "provider": "gemini",
+  "path": "v1beta/models/gemini-3-flash-preview:generateContent",
+  "body": "{...}"
+}
+```
+- **响应（data）**:
+```json
+{
+  "session": {},
+  "step": {},
+  "content": "...",
+  "raw": {}
+}
+```
+
+---
+
 ## 会话步骤接口（Session Steps）
 
 ### 创建步骤

@@ -17,6 +17,7 @@ import (
 type AIConfigService interface {
 	UpdateProviderConfig(provider, baseURL, apiKey string) error
 	GetProviderConfig(provider string) (*ProviderConfig, error)
+	GetProviderConfigRaw(provider string) (*ProviderConfig, error)
 	TestProvider(provider string) error
 }
 
@@ -113,6 +114,26 @@ func (s *aiConfigService) GetProviderConfig(provider string) (*ProviderConfig, e
 		Provider:  record.Provider,
 		BaseURL:   record.BaseURL,
 		APIKey:    maskAPIKey(record.APIKey),
+		UpdatedAt: "",
+	}, nil
+}
+
+// GetProviderConfigRaw 获取供应商配置（用于内部调用）
+func (s *aiConfigService) GetProviderConfigRaw(provider string) (*ProviderConfig, error) {
+	cleanProvider := strings.TrimSpace(provider)
+	if cleanProvider == "" {
+		return nil, errors.New("invalid provider")
+	}
+
+	record, err := s.configRepo.GetProviderConfig(cleanProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProviderConfig{
+		Provider:  record.Provider,
+		BaseURL:   record.BaseURL,
+		APIKey:    record.APIKey,
 		UpdatedAt: "",
 	}, nil
 }

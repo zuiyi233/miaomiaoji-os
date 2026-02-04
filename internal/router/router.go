@@ -75,6 +75,8 @@ func Setup() *gin.Engine {
 	sessionRepo := repository.NewSessionRepository(db)
 	sessionService := service.NewSessionService(sessionRepo)
 	sessionHandler := handler.NewSessionHandler(sessionService)
+	workflowService := service.NewWorkflowService(aiConfigService, sessionService)
+	workflowHandler := handler.NewWorkflowHandler(workflowService, sessionService)
 
 	// Job 依赖
 	jobRepo := repository.NewJobRepository(db)
@@ -290,6 +292,13 @@ func Setup() *gin.Engine {
 		{
 			sse.GET("/stream", middleware.JWTAuth(), sseHandler.Stream)
 			sse.POST("/test", middleware.JWTAuth(), sseHandler.BroadcastTestEvent)
+		}
+
+		// 工作流路由
+		workflows := v1.Group("/workflows")
+		{
+			workflows.POST("/world", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunWorld)
+			workflows.POST("/polish", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunPolish)
 		}
 
 		// 结算路由
