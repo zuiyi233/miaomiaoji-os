@@ -49,10 +49,10 @@
 | 立项与设定层 | **部分实现**：项目 CRUD + 统一实体模型（角色/组织/设定等） | Project、Entity、EntityLink | `/api/v1/projects`、`/api/v1/projects/:project_id/entities` | REST CRUD | `internal/router/router.go:L169-L234`；`internal/model/entity.go:L15-L69`；`internal/handler/entity_handler.go:L61-L218` |
 | 向导（SSE） | **部分实现**：前端有向导，但非 SSE；后端有工作流 SSE | Session/SessionStep | `NovelWizard` 调 `generateNovelBlueprint`；SSE 订阅会话流 | 非向导链路；SSE 用于工作流输出 | `web/components/NovelWizard.tsx:L12-L101`；`internal/router/router.go:L297-L302`；`docs/api.md:L930-L1077` |
 | 章节生产线 | **部分实现**：文档 CRUD；工作流仅“世界观/润色” | Document | `/api/v1/projects/:project_id/documents` | 无章节生成/分析/重写/批量接口 | `internal/handler/document_handler.go:L25-L257`；`internal/router/router.go:L188-L219` |
-| 工具增强（插件/MCP） | **部分实现**：插件管理/调用存在；缺少工具注入到 AI | Plugin、PluginCapability | `/api/v1/plugins/*` + invoke | 插件调用 API | `internal/model/plugin.go:L9-L55`；`internal/handler/plugin_handler.go:L52-L257`；`internal/router/router.go:L246-L262` |
-| 关系图谱（CP） | **部分实现**：实体关联 + 前端图谱 | EntityLink | 图谱组件渲染实体与文档关联 | 前端图谱（本地数据） | `internal/model/entity.go:L54-L69`；`web/components/GraphVisualizer.tsx:L35-L149` |
+| 工具增强（插件/MCP） | **部分实现**：插件管理/调用存在；缺少工具注入到 AI | Plugin、PluginCapability | `/api/v1/plugins/*` + invoke/invoke-async | 插件调用 API | `internal/model/plugin.go:L9-L55`；`internal/handler/plugin_handler.go:L52-L337`；`internal/router/router.go:L246-L263` |
+| 关系图谱（CP） | **部分实现**：实体关联 + 前端图谱 + 关系边 API | EntityLink | 图谱组件渲染实体与文档关联 | 前端图谱（本地数据） | `internal/model/entity.go:L54-L69`；`internal/handler/entity_handler.go:L266-L309`；`web/components/GraphVisualizer.tsx:L35-L149` |
 | 一致性约束（模板/风格） | **部分实现**：模板 CRUD；前端 AI 提示词模板工具 | Template | `/api/v1/projects/:project_id/templates` | 模板驱动提示词 | `internal/handler/template_handler.go:L26-L188`；`web/components/AIAssistant.tsx:L75-L260` |
-| 智能上下文构建 | **待确认**：未见 RTCO/记忆上下文服务 | 待确认 | 待确认 | 待确认 | 需查：`internal/service/*context*`、`*memory*`、`*embedding*` |
+| 智能上下文构建 | **未实现**：未发现上下文构建/向量检索服务，仅有语料库模块 | CorpusStory | `/api/v1/corpus/*` | 语料库 CRUD | `internal/handler/corpus_handler.go:L23-L211` |
 | SSE 机制 | **已实现**：SSE Hub + Stream | SSEEvent | `/api/v1/sse/stream` | step/quality/export 事件 | `pkg/sse/sse.go:L12-L175`；`internal/handler/sse_handler.go:L24-L109`；`internal/router/router.go:L290-L295` |
 | 工作流（世界观/润色） | **已实现**：RunWorld/RunPolish | Session/SessionStep | `/api/v1/workflows/world` `/polish` | AI 代理 + SSE 广播 | `internal/handler/workflow_handler.go:L27-L105`；`internal/service/workflow_service.go:L55-L191` |
 | AI 代理 | **已实现**：同步/流式代理 | AI Provider Config | `/api/v1/ai/proxy` `/proxy/stream` | 透传模型 API | `internal/handler/ai_proxy_handler.go:L27-L91`；`internal/handler/ai_proxy_stream_handler.go:L27-L105` |
@@ -73,12 +73,12 @@
 |---|---|---|---|---|---|---|
 | 立项向导（SSE分步） | 部分实现 | 我方无“分步SSE向导链路”，现为前端本地向导 | Workflow/SSE/SessionStep | 中 | 需定义步骤协议与数据结构 | MuMu §6.1；`NovelWizard.tsx:L12-L101` |
 | 章节生产线 | 部分实现 | 缺章节生成/分析/重写/批量接口 | Workflow/AI 代理/SSE | 高 | 长链路稳定性 | MuMu §6.2；`document_handler.go:L25-L257` |
-| MCP 工具注入 | 未实现 | 插件存在但未注入 AI 调用 | AIService/插件工具协议 | 高 | 跨模型工具协议适配 | MuMu §4.3；`plugin_handler.go:L52-L257` |
-| 关系图谱（CP） | 部分实现 | 关系类型库/关系边 API 缺失 | Entity 扩展 | 中 | 关系一致性 | MuMu §5；`entity.go:L54-L69` |
+| MCP 工具注入 | 未实现 | 插件存在但未注入 AI 调用 | AIService/插件工具协议 | 高 | 跨模型工具协议适配 | MuMu §4.3；`plugin_handler.go:L52-L337` |
+| 关系图谱（CP） | 部分实现 | 关系类型库缺失；关系边 API 已有（实体链接） | Entity 扩展 | 中 | 关系一致性 | MuMu §5；`internal/model/entity.go:L54-L69`；`internal/handler/entity_handler.go:L266-L309` |
 | 一致性约束（记忆/伏笔） | 部分实现 | 模板有，记忆/伏笔未见 | 新增模块 | 中 | 数据结构变更 | MuMu §6.3；`template_handler.go:L26-L188` |
-| 智能上下文构建 | 未实现 | 无 RTCO 分层上下文服务 | 章节/记忆/向量检索 | 高 | 成本与复杂度 | MuMu §6.4；待确认 |
-| 质量门禁链路 | 部分实现 | 质量检查未与章节生产线闭环 | 章节生成链路 | 中 | 质量标准一致性 | `internal/router/router.go:L347-L352` |
-| 文件导出链路 | 部分实现 | 文件管理存在但未见导出流程与 SSE 闭环 | 导出/排版 | 中 | 导出格式一致性 | `internal/router/router.go:L329-L345` |
+| 智能上下文构建 | 未实现 | 未发现上下文构建/向量检索服务 | 章节/记忆/向量检索 | 高 | 成本与复杂度 | MuMu §6.4；`internal/handler/corpus_handler.go:L23-L211` |
+| 质量门禁链路 | 部分实现 | 质量检查未与章节生产线闭环（章节工作流尚未实现） | 章节生成链路 | 中 | 质量标准一致性 | `internal/router/router.go:L297-L302`；`internal/router/router.go:L347-L352` |
+| 文件导出链路 | 部分实现 | 已有项目导出 JSON，但未见“生成→排版→导出”闭环与 SSE 导出事件 | 导出/排版 | 中 | 导出格式一致性 | `internal/router/router.go:L181-L181`；`internal/handler/project_handler.go:L410-L442`；`internal/router/router.go:L329-L345` |
 
 ---
 
@@ -98,7 +98,7 @@
 |---|---|---|---|---|
 | 权限校验（Files） | `ListFilesByProject` 仅按 `project_id` 查询，无项目/用户归属校验 | 存在越权读取风险 | 按项目归属校验；或查询时限定 `user_id` | `internal/handler/file_handler.go:L186-L225`；`internal/service/file_service.go:L87-L88` |
 | 权限校验（Documents） | `ListByProject`/`GetByID` 未校验项目/文档归属；Service 层仅校验“项目是否存在” | 项目文档可能被越权读取 | List/Create/Detail 统一校验 project.UserID==当前用户 | `internal/handler/document_handler.go:L120-L189`；`internal/service/document_service.go:L83-L100` |
-| AI 代理 allowlist | 仅拦截 `..`，缺少路径白名单 | 可被滥用调用非预期上游路径 | 以 provider+path allowlist 约束（或映射成固定枚举） | `internal/handler/ai_proxy_handler.go:L34-L58`；`internal/handler/ai_proxy_stream_handler.go:L34-L58` |
+| AI 代理 allowlist | 仅拦截 `..`，缺少路径白名单 | 可被滥用调用非预期上游路径 | 以 provider+path allowlist 约束（或映射成固定枚举） | `internal/handler/ai_proxy_handler.go:L34-L58`；`internal/handler/ai_proxy_stream_handler.go:L34-L58`；`internal/service/workflow_service.go:L98-L101` |
 | 配置注入 | Quality/Formatting 用 `config.Config{}` 初始化 | 阈值与规则不稳定，环境不一致 | 统一从配置中心注入真实配置 | `internal/router/router.go:L101-L106` |
 | 响应契约一致性 | `ProjectHandler.Export` 直接 `c.JSON` | 与统一 response 包不一致，前端易踩坑 | 统一使用 `response.SuccessWithData` | `internal/handler/project_handler.go:L404-L442` |
 
@@ -117,13 +117,13 @@
 
 ---
 
-## 6. 待确认清单（后续查证路径）
+## 6. 待确认清单（已核对）
 
-| 项 | 说明 | 查证路径 |
+| 项 | 说明 | 证据引用 |
 |---|---|---|
-| 关系类型库/关系边 API | 是否存在专用关系模型/接口 | `internal/handler/*relationship*`、`internal/model/*relationship*` |
-| 记忆/伏笔/上下文构建 | 是否已有上下文构建或向量检索 | `internal/service/*context*`、`*memory*`、`*embedding*` |
-| 前端路由结构 | 具体页面与模块入口 | `web/App.tsx`、`web/components/Layout.tsx` |
+| 关系类型库/关系边 API | 未发现关系类型库；关系边 API 以实体链接形式已存在（entities/:id/links） | `internal/model/entity.go:L54-L69`；`internal/handler/entity_handler.go:L266-L309`；`internal/router/router.go:L224-L234` |
+| 记忆/伏笔/上下文构建 | 未发现上下文构建/向量检索服务，当前仅有语料库模块 | `internal/handler/corpus_handler.go:L23-L211` |
+| 前端路由结构 | 入口由 React Router 渲染 Layout，路由映射集中在 Layout 中 | `web/App.tsx:L9-L26`；`web/components/Layout.tsx:L19-L214` |
 
 ---
 
@@ -143,10 +143,10 @@
 | 主题 | 发现 | 风险/影响 | 证据引用 |
 |---|---|---|---|
 | 模块边界 | 工作流仅覆盖“世界观/润色”，未覆盖章节生成/分析/重写 | 闭环不完整 | `internal/router/router.go:L297-L302`；`internal/handler/workflow_handler.go:L37-L105` |
-| 插件/MCP | 插件管理完整，但未见 AI 调用时的工具注入链路 | 无法复现 MuMu MCP 核心能力 | `internal/handler/plugin_handler.go:L52-L257`；`web/services/pluginService.ts:L127-L229` |
-| 图谱 | 有实体关联与前端图谱，缺关系类型库/统一关系模型 | 关系图谱语义不足 | `internal/model/entity.go:L54-L69`；`web/components/GraphVisualizer.tsx:L35-L149` |
+| 插件/MCP | 插件管理完整，但未见 AI 调用时的工具注入链路 | 无法复现 MuMu MCP 核心能力 | `internal/handler/plugin_handler.go:L52-L337`；`web/services/pluginService.ts:L127-L229` |
+| 图谱 | 有实体关联与前端图谱，关系边 API 已有但缺关系类型库 | 关系图谱语义不足 | `internal/model/entity.go:L54-L69`；`internal/handler/entity_handler.go:L266-L309`；`web/components/GraphVisualizer.tsx:L35-L149` |
 | 质量门禁 | 质量接口存在但未与章节生成链路闭环 | 生成质量不可控 | `internal/router/router.go:L347-L352` |
-| 导出链路 | 文件/排版存在，但未见“生成→导出”闭环 | 无完整发布链路 | `internal/router/router.go:L329-L345` |
+| 导出链路 | 文件/排版存在，项目导出 JSON 已有；但未见“生成→排版→导出”闭环 | 无完整发布链路 | `internal/router/router.go:L181-L181`；`internal/handler/project_handler.go:L410-L442`；`internal/router/router.go:L329-L345` |
 
 ### 8.2 关键代码级发现
 
@@ -192,9 +192,9 @@
 | 设定管理 | 角色/组织/设定结构化 | 在 `StoryEntity` 基础上扩展 schema；关键类型加专表或字段 | `/api/v1/projects/:id/entities` | MuMu §1；`internal/model/entity.go:L15-L69` |
 | 章节生产线 | 生成/分析/重写/批量 | 新增 `chapter_generate`/`chapter_analyze`/`chapter_rewrite` workflow；落地文档 & 质量门禁 | `/api/v1/workflows/chapters/*` | MuMu §6.2；`internal/handler/document_handler.go:L25-L257` |
 | MCP 插件 | 工具注入 + 自动调用 | AI 调用前注入 `ToolRegistry`；工具调用由 `JobService` 执行，回填 `SessionStep` | `/api/v1/plugins/*` + tool calls | MuMu §4；`internal/service/job_service.go:L19-L257` |
-| 关系图谱 | 关系类型库 + 关系边 | 增加 `RelationshipType` + `EntityRelation` 模型；Graph API | `/api/v1/relations/*` | MuMu §5；`internal/model/entity.go:L54-L69` |
+| 关系图谱 | 关系类型库 + 关系边 | 关系边已存在（实体链接）；关系类型库未见 | `/api/v1/entities/:id/links` | MuMu §5；`internal/model/entity.go:L54-L69`；`internal/handler/entity_handler.go:L266-L309` |
 | 一致性约束 | Prompt/风格/记忆 | PromptTemplate + WritingStyle 模块；workflow 注入上下文 | `/api/v1/templates/*` | MuMu §6.3；`internal/handler/template_handler.go:L26-L188` |
-| 上下文构建 | RTCO 分层 | 新增 `ContextBuilderService`：规则检索 → 向量检索 → 拼接；按章节级调用 | 内部服务调用 | MuMu §6.4；待确认 |
+| 上下文构建 | RTCO 分层 | 未实现上下文构建/向量检索服务，仅有语料库模块 | 内部服务调用 | MuMu §6.4；`internal/handler/corpus_handler.go:L23-L211` |
 | 质量门禁 | 生成后质量门禁 | `quality_service.CheckQuality` 作为 workflow 后置步骤 | `/api/v1/quality/check` | MuMu §6.2；`internal/service/quality_service.go:L46-L137` |
 | 排版/导出 | 生成后导出 | `formatting_service` + `file_service` 生成导出文件 | `/api/v1/formatting/format` `/api/v1/files/*` | MuMu §1；`internal/handler/formatting_handler.go:L21-L88` |
 
