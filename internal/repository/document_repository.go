@@ -14,6 +14,8 @@ type DocumentRepository interface {
 	FindByID(id uint) (*model.Document, error)
 	FindByProjectID(projectID uint, page, size int) ([]*model.Document, int64, error)
 	FindByVolumeID(volumeID uint, page, size int) ([]*model.Document, int64, error)
+	GetMaxOrderIndexByProject(projectID uint) (int, error)
+	GetMaxOrderIndexByVolume(volumeID uint) (int, error)
 	Update(document *model.Document) error
 	Delete(id uint) error
 	AddBookmark(documentID uint, bookmark model.Bookmark) error
@@ -86,6 +88,26 @@ func (r *documentRepository) FindByVolumeID(volumeID uint, page, size int) ([]*m
 	}
 
 	return documents, total, nil
+}
+
+// GetMaxOrderIndexByProject 获取项目内最大排序
+func (r *documentRepository) GetMaxOrderIndexByProject(projectID uint) (int, error) {
+	var maxOrder int
+	err := database.GetDB().Model(&model.Document{}).
+		Select("COALESCE(MAX(order_index), 0)").
+		Where("project_id = ?", projectID).
+		Scan(&maxOrder).Error
+	return maxOrder, err
+}
+
+// GetMaxOrderIndexByVolume 获取卷内最大排序
+func (r *documentRepository) GetMaxOrderIndexByVolume(volumeID uint) (int, error) {
+	var maxOrder int
+	err := database.GetDB().Model(&model.Document{}).
+		Select("COALESCE(MAX(order_index), 0)").
+		Where("volume_id = ?", volumeID).
+		Scan(&maxOrder).Error
+	return maxOrder, err
 }
 
 // Update 更新文档

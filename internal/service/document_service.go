@@ -13,6 +13,7 @@ type DocumentService interface {
 	GetByID(id uint) (*model.Document, error)
 	ListByProjectID(projectID uint, page, size int) ([]*model.Document, int64, error)
 	ListByVolumeID(volumeID uint, page, size int) ([]*model.Document, int64, error)
+	GetNextOrderIndex(projectID uint, volumeID uint) (int, error)
 	Update(id uint, updates map[string]interface{}) (*model.Document, error)
 	Delete(id uint) error
 	AddBookmark(id uint, title string, position int, note string) error
@@ -109,6 +110,31 @@ func (s *documentService) ListByVolumeID(volumeID uint, page, size int) ([]*mode
 	}
 
 	return s.documentRepo.FindByVolumeID(volumeID, page, size)
+}
+
+// GetNextOrderIndex 获取下一个排序号
+func (s *documentService) GetNextOrderIndex(projectID uint, volumeID uint) (int, error) {
+	if volumeID > 0 {
+		if _, err := s.volumeRepo.FindByID(volumeID); err != nil {
+			return 0, errors.ErrVolumeNotFound
+		}
+		maxOrder, err := s.documentRepo.GetMaxOrderIndexByVolume(volumeID)
+		if err != nil {
+			logger.Error("获取卷内最大排序失败", logger.Err(err))
+			return 0, errors.ErrInternalServer
+		}
+		return maxOrder + 1, nil
+	}
+
+	if _, err := s.projectRepo.FindByID(projectID); err != nil {
+		return 0, errors.ErrProjectNotFound
+	}
+	maxOrder, err := s.documentRepo.GetMaxOrderIndexByProject(projectID)
+	if err != nil {
+		logger.Error("获取项目内最大排序失败", logger.Err(err))
+		return 0, errors.ErrInternalServer
+	}
+	return maxOrder + 1, nil
 }
 
 // Update 更新文档

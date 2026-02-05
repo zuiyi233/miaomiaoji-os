@@ -75,8 +75,8 @@ func Setup() *gin.Engine {
 	sessionRepo := repository.NewSessionRepository(db)
 	sessionService := service.NewSessionService(sessionRepo)
 	sessionHandler := handler.NewSessionHandler(sessionService)
-	workflowService := service.NewWorkflowService(aiConfigService, sessionService)
-	workflowHandler := handler.NewWorkflowHandler(workflowService, sessionService)
+	workflowService := service.NewWorkflowService(aiConfigService, sessionService, documentService)
+	workflowHandler := handler.NewWorkflowHandler(workflowService, sessionService, documentService)
 
 	// Job 依赖
 	jobRepo := repository.NewJobRepository(db)
@@ -299,6 +299,14 @@ func Setup() *gin.Engine {
 		{
 			workflows.POST("/world", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunWorld)
 			workflows.POST("/polish", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunPolish)
+
+			chapters := workflows.Group("/chapters")
+			{
+				chapters.POST("/generate", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunChapterGenerate)
+				chapters.POST("/analyze", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunChapterAnalyze)
+				chapters.POST("/rewrite", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunChapterRewrite)
+				chapters.POST("/batch", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunChapterBatch)
+			}
 		}
 
 		// 结算路由
