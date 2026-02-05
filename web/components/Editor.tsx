@@ -22,6 +22,7 @@ export const Editor: React.FC = () => {
   const [content, setContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPolishing, setIsPolishing] = useState(false);
+  const [isRewriting, setIsRewriting] = useState(false);
   const [isChapterGenerating, setIsChapterGenerating] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPluginRunning, setIsPluginRunning] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export const Editor: React.FC = () => {
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGeneratingTime, setIsGeneratingTime] = useState(false);
   const [wordCountRequest, setWordCountRequest] = useState<'normal' | 'expand' | 'finish'>('normal');
+  const [rewriteMode, setRewriteMode] = useState<'polish' | 'expand' | 'shorten' | 'rewrite'>('polish');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const activeDoc = project?.documents.find(d => d.id === activeDocumentId);
@@ -179,6 +181,69 @@ export const Editor: React.FC = () => {
       }
     } finally {
       setIsPolishing(false);
+    }
+  };
+
+  const handleRewriteChapter = async () => {
+    if (!activeDoc || !project || !hasAIAccess) return;
+    if (!content.trim()) return;
+    setIsRewriting(true);
+    const modeInstructions: Record<string, { label: string; system: string }> = {
+      polish: {
+        label: '润色',
+        system: '你是一位资深文学编辑，请在不改变核心情节的前提下润色文本，提升文采与节奏。只输出润色后的正文。',
+      },
+      expand: {
+        label: '扩写',
+        system: '你是一位职业小说作者，请在不改变核心情节的前提下扩写文本，补充细节描写与情绪氛围。只输出扩写后的正文。',
+      },
+      shorten: {
+        label: '精简',
+        system: '你是一位资深编辑，请保留核心情节与关键细节，压缩冗余描述，让文本更紧凑。只输出精简后的正文。',
+      },
+      rewrite: {
+        label: '改写',
+        system: '你是一位资深写作者，请在不改变核心情节的前提下改写文本，优化措辞与节奏。只输出改写后的正文。',
+      },
+    };
+    const instruction = modeInstructions[rewriteMode] || modeInstructions.polish;
+    const prompt = `请${instruction.label}以下章节内容：\n\n${content}`;
+    try {
+      const projectId = await ensureProjectId();
+      if (!projectId) throw new Error('项目未同步到后端');
+
+      const backendDocumentId = await ensureBackendDocumentId(projectId);
+      if (!backendDocumentId) throw new Error('文档未同步到后端');
+
+      const payload = buildWorkflowPayload(prompt, instruction.system, project.aiSettings);
+      const result = await runChapterRewriteApi({
+        project_id: projectId,
+        document_id: backendDocumentId,
+        rewrite_mode: rewriteMode,
+        provider: payload.provider,
+        path: payload.path,
+        body: payload.body,
+        write_back: { set_status: '修改中' },
+      });
+
+      const rewritten = (result?.content || '').trim();
+      if (rewritten) {
+        setContent(rewritten);
+        updateDocument(activeDoc.id, { content: rewritten });
+      }
+
+      if (result.session?.id) {
+        selectSession(String(result.session.id));
+        setViewMode(ViewMode.WORKFLOW_DETAIL);
+      }
+    } catch {
+      const fallback = await generateText(prompt, instruction.system, project.aiSettings);
+      if (fallback.trim()) {
+        setContent(fallback.trim());
+        updateDocument(activeDoc.id, { content: fallback.trim() });
+      }
+    } finally {
+      setIsRewriting(false);
     }
   };
 
@@ -416,6 +481,30 @@ export const Editor: React.FC = () => {
             )}
 
             {hasAIAccess && (
+              <div className="hidden sm:flex items-center gap-2">
+                <select
+                  value={rewriteMode}
+                  onChange={(e) => setRewriteMode(e.target.value as typeof rewriteMode)}
+                  className="px-2 py-1.5 rounded-lg border border-paper-200 dark:border-zinc-700 bg-paper-50 dark:bg-zinc-800 text-[10px] font-bold text-ink-600 dark:text-zinc-300"
+                  title="重写模式"
+                >
+                  <option value="polish">润色</option>
+                  <option value="expand">扩写</option>
+                  <option value="shorten">精简</option>
+                  <option value="rewrite">改写</option>
+                </select>
+                <button
+                  onClick={handleRewriteChapter}
+                  disabled={isRewriting}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-amber-400 transition-all shadow-lg disabled:opacity-60"
+                  title="章节重写"
+                >
+                  {isRewriting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Edit3 className="w-3 h-3" />} 重写
+                </button>
+              </div>
+            )}
+
+            {hasAIAccess && (
               <button
                 onClick={handleGenerateChapter}
                 disabled={isChapterGenerating}
@@ -647,6 +736,26 @@ export const Editor: React.FC = () => {
                         >
                           {isPolishing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />} 润色
                         </button>
+
+                        <div className="flex items-center gap-1">
+                          <select
+                            value={rewriteMode}
+                            onChange={(e) => setRewriteMode(e.target.value as typeof rewriteMode)}
+                            className="px-2 py-1 rounded-lg border border-paper-200 dark:border-zinc-700 bg-paper-50 dark:bg-zinc-800 text-[10px] font-bold text-ink-600 dark:text-zinc-300"
+                          >
+                            <option value="polish">润色</option>
+                            <option value="expand">扩写</option>
+                            <option value="shorten">精简</option>
+                            <option value="rewrite">改写</option>
+                          </select>
+                          <button
+                            onClick={handleRewriteChapter}
+                            disabled={isRewriting}
+                            className="flex items-center gap-1.5 px-3 py-1 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-amber-400 transition-all shadow-lg disabled:opacity-60"
+                          >
+                            {isRewriting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Edit3 className="w-3 h-3" />} 重写
+                          </button>
+                        </div>
 
                         <button
                           onClick={handleGenerateChapter}

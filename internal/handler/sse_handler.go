@@ -29,7 +29,7 @@ func (h *SSEHandler) Stream(c *gin.Context) {
 	clientID := uuid.NewString()
 	hub := sse.GetHub()
 	client := hub.AddClient(clientID, sessionID)
-	defer hub.RemoveClient(sessionID, clientID)
+	defer hub.RemoveClient(clientID)
 
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")

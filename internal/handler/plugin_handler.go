@@ -369,5 +369,9 @@ func (h *PluginHandler) InvokePluginAsync(c *gin.Context) {
 	}
 
 	c.Header("Location", "/api/v1/jobs/"+job.JobUUID)
-	response.SuccessWithDataAndStatus(c, http.StatusAccepted, gin.H{"job_uuid": job.JobUUID, "status": job.Status})
+	c.JSON(http.StatusAccepted, response.Response{
+		Code:    errors.CodeSuccess,
+		Message: "success",
+		Data:    gin.H{"job_uuid": job.JobUUID, "status": job.Status},
+	})
 }
