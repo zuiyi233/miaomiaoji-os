@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Activity, ListChecks, Terminal, AlertCircle, Loader2 } from 'lucide-react';
-import { ConnectionState, createSSEClient, StepAppendedData } from '../services/sseClient';
+import { ConnectionState, createSSEClient, ProgressUpdatedData, StepAppendedData, WorkflowDoneData } from '../services/sseClient';
 import { getSessionApi, listStepsApi, SessionDTO, SessionStepDTO } from '../services/workflowApi';
 import { useParams } from 'react-router-dom';
 
@@ -25,6 +25,8 @@ export const WorkflowDetail: React.FC<WorkflowDetailProps> = ({ sessionId, onBac
   const [activeStepId, setActiveStepId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [doneInfo, setDoneInfo] = useState<{ mode: string; documentId?: number } | null>(null);
 
   const sessionNumericId = Number(resolvedSessionId);
   const stateMeta = STATE_META[connectionState];
@@ -70,7 +72,7 @@ export const WorkflowDetail: React.FC<WorkflowDetailProps> = ({ sessionId, onBac
           if (existing) {
             return prev.map((item) =>
               item.id === data.step_id
-                ? { ...item, content: item.content + data.content }
+                ? { ...item, content: item.content + (typeof data.content === 'string' ? data.content : '') }
                 : item
             );
           }
@@ -88,6 +90,19 @@ export const WorkflowDetail: React.FC<WorkflowDetailProps> = ({ sessionId, onBac
           return [...prev, next];
         });
         setActiveStepId((prev) => prev ?? data.step_id);
+      },
+      onProgressUpdated: (data: ProgressUpdatedData) => {
+        if (typeof data.progress === 'number') {
+          const safe = Math.max(0, Math.min(100, Math.round(data.progress)));
+          setProgress(safe);
+        }
+      },
+      onWorkflowDone: (data: WorkflowDoneData) => {
+        setDoneInfo({ mode: data.mode || 'workflow', documentId: data.document_id });
+        setProgress(100);
+      },
+      onError: (data) => {
+        setError(data?.message || 'SSE 事件错误');
       },
     });
     client.connect();
@@ -119,6 +134,26 @@ export const WorkflowDetail: React.FC<WorkflowDetailProps> = ({ sessionId, onBac
             <Activity className="w-3 h-3" /> {stateMeta.label}
           </span>
         </div>
+
+        {(progress !== null || doneInfo) && (
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-ink-400 dark:text-zinc-500">
+              <span>进度</span>
+              <span className="tabular-nums">{progress ?? 0}%</span>
+              {doneInfo && (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200">
+                  已完成 · {doneInfo.mode}
+                </span>
+              )}
+            </div>
+            <div className="h-2 w-full bg-paper-100 dark:bg-zinc-800 rounded-full overflow-hidden border border-paper-200 dark:border-zinc-700">
+              <div
+                className="h-full bg-brand-600 transition-all duration-300"
+                style={{ width: `${progress ?? 0}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="px-4 sm:px-6 lg:px-8 py-6 flex-1 overflow-hidden grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">

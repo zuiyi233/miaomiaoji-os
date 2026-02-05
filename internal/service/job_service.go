@@ -250,9 +250,10 @@ func (s *jobService) worker() {
 		s.broadcastJobEvent(job.SessionID, sse.EventTypeStepAppended, map[string]interface{}{
 			"step_id":   step.ID,
 			"title":     step.Title,
+			"content":   step.Content,
 			"job_uuid":  job.JobUUID,
 			"plugin_id": job.PluginID,
-			"timestamp": time.Now(),
+			"timestamp": time.Now().Format(time.RFC3339),
 		})
 
 		s.broadcastJobEvent(job.SessionID, sse.EventType("job.succeeded"), map[string]interface{}{

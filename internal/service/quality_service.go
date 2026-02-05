@@ -3,6 +3,7 @@ package service
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -75,7 +76,7 @@ func (s *qualityGateService) CheckQuality(content string) (*QualityCheckResult, 
 		result.Issues = append(result.Issues, QualityIssue{
 			Type:     "length",
 			Severity: "high",
-			Message:  "内容过短，建议至少 " + string(rune(minLength)) + " 个有效字符",
+			Message:  "内容过短，建议至少 " + strconv.Itoa(minLength) + " 个有效字符",
 		})
 		result.Passed = false
 	}
@@ -87,7 +88,7 @@ func (s *qualityGateService) CheckQuality(content string) (*QualityCheckResult, 
 		result.Issues = append(result.Issues, QualityIssue{
 			Type:     "length",
 			Severity: "medium",
-			Message:  "内容过长，建议控制在 " + string(rune(maxLength)) + " 个字符以内",
+			Message:  "内容过长，建议控制在 " + strconv.Itoa(maxLength) + " 个字符以内",
 		})
 	}
 
@@ -150,7 +151,7 @@ func (s *qualityGateService) checkParagraphLengths(paragraphs []string, result *
 			result.Issues = append(result.Issues, QualityIssue{
 				Type:     "paragraph",
 				Severity: "low",
-				Message:  "段落 " + string(rune(i+1)) + " 过短，建议充实内容",
+				Message:  "段落 " + strconv.Itoa(i+1) + " 过短，建议充实内容",
 				Position: i + 1,
 			})
 		}
@@ -160,7 +161,7 @@ func (s *qualityGateService) checkParagraphLengths(paragraphs []string, result *
 			result.Issues = append(result.Issues, QualityIssue{
 				Type:     "paragraph",
 				Severity: "low",
-				Message:  "段落 " + string(rune(i+1)) + " 过长，建议适当分段",
+				Message:  "段落 " + strconv.Itoa(i+1) + " 过长，建议适当分段",
 				Position: i + 1,
 			})
 		}

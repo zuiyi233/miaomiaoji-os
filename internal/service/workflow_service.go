@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"novel-agent-os-backend/internal/model"
+	"novel-agent-os-backend/pkg/logger"
 	"novel-agent-os-backend/pkg/sse"
 
 	"gorm.io/datatypes"
@@ -24,6 +25,7 @@ type RunWorkflowRequest struct {
 	Provider     string
 	Path         string
 	Body         string
+	AuthorizationHeader string
 }
 
 // RunWorkflowResult 工作流执行结果
@@ -46,13 +48,17 @@ type workflowService struct {
 	aiConfigService AIConfigService
 	sessionService  SessionService
 	documentService DocumentService
+	pluginService   PluginService
+	jobService      JobService
 }
 
-func NewWorkflowService(aiConfigService AIConfigService, sessionService SessionService, documentService DocumentService) WorkflowService {
+func NewWorkflowService(aiConfigService AIConfigService, sessionService SessionService, documentService DocumentService, pluginService PluginService, jobService JobService) WorkflowService {
 	return &workflowService{
 		aiConfigService: aiConfigService,
 		sessionService:  sessionService,
 		documentService: documentService,
+		pluginService:   pluginService,
+		jobService:      jobService,
 	}
 }
 
@@ -62,7 +68,10 @@ func (s *workflowService) RunStep(req RunWorkflowRequest) (*RunWorkflowResult, e
 		return nil, err
 	}
 
-	raw, content, err := callAI(s.aiConfigService, req.Provider, req.Path, req.Body)
+	s.broadcastProgress(session.ID, 0, "开始")
+
+	body := s.injectToolsToBodyIfPossible(session.ID, req.ProjectID, req.Provider, req.Path, req.Body)
+	raw, content, err := callAI(s.aiConfigService, req.Provider, req.Path, body)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +84,12 @@ func (s *workflowService) RunStep(req RunWorkflowRequest) (*RunWorkflowResult, e
 	if err != nil {
 		return nil, err
 	}
+
+	s.broadcastProgress(session.ID, 100, "完成")
+	s.broadcastDone(session.ID, req.Mode, 0)
+
+	// 如果模型返回 tool_calls，则转成异步 Job 执行（插件调用）
+	_ = s.dispatchToolCalls(session, req.UserID, req.AuthorizationHeader, raw)
 
 	return &RunWorkflowResult{
 		Session: session,
@@ -105,6 +120,7 @@ type ChapterGenerateRequest struct {
 	Path         string
 	Body         string
 	WriteBack    ChapterWriteBack
+	AuthorizationHeader string
 }
 
 // ChapterGenerateResult 章节生成结果
@@ -127,6 +143,7 @@ type ChapterAnalyzeRequest struct {
 	Path         string
 	Body         string
 	WriteBack    ChapterWriteBack
+	AuthorizationHeader string
 }
 
 // ChapterAnalyzeResult 章节分析结果
@@ -149,6 +166,7 @@ type ChapterRewriteRequest struct {
 	Path         string
 	Body         string
 	WriteBack    ChapterWriteBack
+	AuthorizationHeader string
 }
 
 // ChapterRewriteResult 章节重写结果
@@ -161,9 +179,16 @@ type ChapterRewriteResult struct {
 
 // ChapterBatchItem 批量章节条目
 type ChapterBatchItem struct {
+	ClientDocumentID string `json:"client_document_id"`
 	Title      string `json:"title"`
 	OrderIndex int    `json:"order_index"`
 	Outline    string `json:"outline"`
+}
+
+// ChapterBatchItemResult 批量生成单条结果（用于前端精确映射）
+type ChapterBatchItemResult struct {
+	ClientDocumentID string          `json:"client_document_id"`
+	Document         *model.Document `json:"document"`
 }
 
 // ChapterBatchRequest 批量章节请求
@@ -178,12 +203,14 @@ type ChapterBatchRequest struct {
 	Path         string
 	BodyTemplate string
 	WriteBack    ChapterWriteBack
+	AuthorizationHeader string
 }
 
 // ChapterBatchResult 批量章节结果
 type ChapterBatchResult struct {
 	Session   *model.Session
 	Documents []*model.Document
+	Results   []ChapterBatchItemResult
 }
 
 // RunChapterGenerate 生成章节并写回文档
@@ -194,7 +221,8 @@ func (s *workflowService) RunChapterGenerate(req ChapterGenerateRequest) (*Chapt
 	}
 
 	s.broadcastProgress(session.ID, 0, "生成开始")
-	raw, content, err := callAI(s.aiConfigService, req.Provider, req.Path, req.Body)
+	body := s.injectToolsToBodyIfPossible(session.ID, req.ProjectID, req.Provider, req.Path, req.Body)
+	raw, content, err := callAI(s.aiConfigService, req.Provider, req.Path, body)
 	if err != nil {
 		return nil, err
 	}
@@ -228,6 +256,7 @@ func (s *workflowService) RunChapterGenerate(req ChapterGenerateRequest) (*Chapt
 
 	s.broadcastProgress(session.ID, 100, "生成完成")
 	s.broadcastDone(session.ID, "chapter_generate", doc.ID)
+	_ = s.dispatchToolCalls(session, req.UserID, req.AuthorizationHeader, raw)
 
 	return &ChapterGenerateResult{
 		Session:  session,
@@ -246,7 +275,8 @@ func (s *workflowService) RunChapterAnalyze(req ChapterAnalyzeRequest) (*Chapter
 	}
 
 	s.broadcastProgress(session.ID, 0, "分析开始")
-	raw, content, err := callAI(s.aiConfigService, req.Provider, req.Path, req.Body)
+	body := s.injectToolsToBodyIfPossible(session.ID, req.ProjectID, req.Provider, req.Path, req.Body)
+	raw, content, err := callAI(s.aiConfigService, req.Provider, req.Path, body)
 	if err != nil {
 		return nil, err
 	}
@@ -285,6 +315,7 @@ func (s *workflowService) RunChapterAnalyze(req ChapterAnalyzeRequest) (*Chapter
 
 	s.broadcastProgress(session.ID, 100, "分析完成")
 	s.broadcastDone(session.ID, "chapter_analyze", doc.ID)
+	_ = s.dispatchToolCalls(session, req.UserID, req.AuthorizationHeader, raw)
 
 	return &ChapterAnalyzeResult{
 		Session:  session,
@@ -307,7 +338,8 @@ func (s *workflowService) RunChapterRewrite(req ChapterRewriteRequest) (*Chapter
 	}
 
 	s.broadcastProgress(session.ID, 0, "重写开始")
-	raw, content, err := callAI(s.aiConfigService, req.Provider, req.Path, req.Body)
+	body := s.injectToolsToBodyIfPossible(session.ID, req.ProjectID, req.Provider, req.Path, req.Body)
+	raw, content, err := callAI(s.aiConfigService, req.Provider, req.Path, body)
 	if err != nil {
 		return nil, err
 	}
@@ -345,6 +377,7 @@ func (s *workflowService) RunChapterRewrite(req ChapterRewriteRequest) (*Chapter
 
 	s.broadcastProgress(session.ID, 100, "重写完成")
 	s.broadcastDone(session.ID, "chapter_rewrite", updated.ID)
+	_ = s.dispatchToolCalls(session, req.UserID, req.AuthorizationHeader, raw)
 
 	return &ChapterRewriteResult{
 		Session:  session,
@@ -362,6 +395,7 @@ func (s *workflowService) RunChapterBatch(req ChapterBatchRequest) (*ChapterBatc
 	}
 
 	documents := make([]*model.Document, 0, len(req.Items))
+	results := make([]ChapterBatchItemResult, 0, len(req.Items))
 	for index, item := range req.Items {
 		progress := int(float64(index) / float64(len(req.Items)) * 100)
 		s.broadcastProgress(session.ID, progress, "批量生成中")
@@ -372,6 +406,7 @@ func (s *workflowService) RunChapterBatch(req ChapterBatchRequest) (*ChapterBatc
 			"volume_id":  req.VolumeID,
 			"provider":   req.Provider,
 			"path":       req.Path,
+			"client_document_id": item.ClientDocumentID,
 			"title":      item.Title,
 		}
 		_, err := s.appendStep(session.ID, "批量生成开始", item.Outline, "chapter.batch.item.started", metadata)
@@ -379,7 +414,8 @@ func (s *workflowService) RunChapterBatch(req ChapterBatchRequest) (*ChapterBatc
 			return nil, err
 		}
 
-		raw, content, err := callAI(s.aiConfigService, req.Provider, req.Path, body)
+		finalBody := s.injectToolsToBodyIfPossible(session.ID, req.ProjectID, req.Provider, req.Path, body)
+		raw, content, err := callAI(s.aiConfigService, req.Provider, req.Path, finalBody)
 		if err != nil {
 			return nil, err
 		}
@@ -412,16 +448,199 @@ func (s *workflowService) RunChapterBatch(req ChapterBatchRequest) (*ChapterBatc
 			return nil, err
 		}
 
+		_ = s.dispatchToolCalls(session, req.UserID, req.AuthorizationHeader, raw)
+
 		documents = append(documents, doc)
+		results = append(results, ChapterBatchItemResult{ClientDocumentID: item.ClientDocumentID, Document: doc})
 	}
 
 	s.broadcastProgress(session.ID, 100, "批量生成完成")
 	s.broadcastDone(session.ID, "chapter_batch", 0)
+	// batch 每个 item 都可能触发 tool_calls，这里不再重复扫描 raw
 
 	return &ChapterBatchResult{
 		Session:   session,
 		Documents: documents,
+		Results:   results,
 	}, nil
+}
+
+type toolCall struct {
+	Name      string
+	Arguments map[string]interface{}
+}
+
+func (s *workflowService) injectToolsToBodyIfPossible(sessionID uint, projectID uint, provider, path, body string) string {
+	// 仅对 OpenAI 兼容 /chat/completions 注入 tools
+	if !strings.Contains(path, "chat/completions") {
+		return body
+	}
+
+	plugins, err := s.pluginService.ListEnabledPlugins()
+	if err != nil || len(plugins) == 0 {
+		return body
+	}
+
+	tools := make([]map[string]interface{}, 0)
+	for _, p := range plugins {
+		for _, cap := range p.Capabilities {
+			name := s.buildToolName(p.ID, cap.CapID)
+			tool := map[string]interface{}{
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":        name,
+					"description": strings.TrimSpace(cap.Description),
+					"parameters":  s.readSchemaOrDefault(cap.InputSchema),
+				},
+			}
+			tools = append(tools, tool)
+		}
+	}
+	if len(tools) == 0 {
+		return body
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		return body
+	}
+	// 已有 tools 则不覆盖
+	if _, ok := payload["tools"]; ok {
+		return body
+	}
+	payload["tools"] = tools
+	if _, ok := payload["tool_choice"]; !ok {
+		payload["tool_choice"] = "auto"
+	}
+
+	out, err := json.Marshal(payload)
+	if err != nil {
+		return body
+	}
+	return string(out)
+}
+
+func (s *workflowService) readSchemaOrDefault(raw datatypes.JSON) map[string]interface{} {
+	if len(raw) == 0 {
+		return map[string]interface{}{
+			"type":                 "object",
+			"additionalProperties": true,
+		}
+	}
+	var v map[string]interface{}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return map[string]interface{}{
+			"type":                 "object",
+			"additionalProperties": true,
+		}
+	}
+	if v["type"] == nil {
+		v["type"] = "object"
+	}
+	return v
+}
+
+func (s *workflowService) buildToolName(pluginID uint, capID string) string {
+	clean := strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return '_'
+	}, capID)
+	if clean == "" {
+		clean = "cap"
+	}
+	return fmt.Sprintf("plugin_%d_%s", pluginID, clean)
+}
+
+func (s *workflowService) dispatchToolCalls(session *model.Session, userID uint, authorizationHeader string, raw json.RawMessage) error {
+	calls := extractOpenAIToolCalls(raw)
+	if len(calls) == 0 {
+		return nil
+	}
+
+	// 将 tool_calls 记录到步骤，便于排查
+	data, _ := json.Marshal(calls)
+	_, _ = s.appendStep(session.ID, "tool_calls", string(data), "tool.calls", map[string]interface{}{"count": len(calls)})
+
+	toolMap, err := s.buildToolMap()
+	if err != nil {
+		return err
+	}
+
+	for _, call := range calls {
+		resolved, ok := toolMap[call.Name]
+		if !ok {
+			logger.Warn("tool call not resolved", logger.String("tool", call.Name))
+			continue
+		}
+		_, _ = s.jobService.CreatePluginInvokeJobFromSession(userID, session.ID, resolved.PluginID, resolved.Method, call.Arguments, authorizationHeader)
+	}
+	return nil
+}
+
+type resolvedTool struct {
+	PluginID uint
+	Method   string
+}
+
+func (s *workflowService) buildToolMap() (map[string]resolvedTool, error) {
+	plugins, err := s.pluginService.ListEnabledPlugins()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]resolvedTool)
+	for _, p := range plugins {
+		for _, cap := range p.Capabilities {
+			name := s.buildToolName(p.ID, cap.CapID)
+			out[name] = resolvedTool{PluginID: p.ID, Method: cap.CapID}
+		}
+	}
+	return out, nil
+}
+
+func extractOpenAIToolCalls(raw json.RawMessage) []toolCall {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil
+	}
+	choices, ok := payload["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return nil
+	}
+	choice0, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	message, ok := choice0["message"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	toolCalls, ok := message["tool_calls"].([]interface{})
+	if !ok || len(toolCalls) == 0 {
+		return nil
+	}
+
+	out := make([]toolCall, 0, len(toolCalls))
+	for _, item := range toolCalls {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		fn, ok := m["function"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, _ := fn["name"].(string)
+		argsStr, _ := fn["arguments"].(string)
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		args := map[string]interface{}{}
+		_ = json.Unmarshal([]byte(argsStr), &args)
+		out = append(out, toolCall{Name: name, Arguments: args})
+	}
+	return out
 }
 
 

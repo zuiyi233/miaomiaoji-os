@@ -156,6 +156,8 @@ export interface StoryEntity {
 
 export interface Document {
   id: string;
+  // backendId 后端 Document 表主键（用于章节工作流写回）
+  backendId?: number;
   volumeId: string;
   title: string;
   content: string;

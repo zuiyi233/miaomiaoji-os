@@ -16,14 +16,64 @@ type WorkflowHandler struct {
 	workflowService service.WorkflowService
 	sessionService  service.SessionService
 	documentService service.DocumentService
+	projectService  service.ProjectService
+	volumeService   service.VolumeService
 }
 
-func NewWorkflowHandler(workflowService service.WorkflowService, sessionService service.SessionService, documentService service.DocumentService) *WorkflowHandler {
+func NewWorkflowHandler(workflowService service.WorkflowService, sessionService service.SessionService, documentService service.DocumentService, projectService service.ProjectService, volumeService service.VolumeService) *WorkflowHandler {
 	return &WorkflowHandler{
 		workflowService: workflowService,
 		sessionService:  sessionService,
 		documentService: documentService,
+		projectService:  projectService,
+		volumeService:   volumeService,
 	}
+}
+
+func (h *WorkflowHandler) ensureProjectOwner(c *gin.Context, projectID uint) bool {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "Unauthorized")
+		return false
+	}
+	project, err := h.projectService.GetByID(projectID)
+	if err != nil {
+		response.Fail(c, errors.CodeNotFound, "Project not found")
+		return false
+	}
+	if project.UserID != userID {
+		response.Fail(c, errors.CodeForbidden, "Access denied")
+		return false
+	}
+	return true
+}
+
+func (h *WorkflowHandler) ensureDocumentOwner(c *gin.Context, documentID uint) bool {
+	if documentID == 0 {
+		return true
+	}
+	doc, err := h.documentService.GetByID(documentID)
+	if err != nil {
+		response.Fail(c, errors.CodeNotFound, "Document not found")
+		return false
+	}
+	return h.ensureProjectOwner(c, doc.ProjectID)
+}
+
+func (h *WorkflowHandler) ensureVolumeInProject(c *gin.Context, projectID uint, volumeID uint) bool {
+	if volumeID == 0 {
+		return true
+	}
+	vol, err := h.volumeService.GetByID(volumeID)
+	if err != nil {
+		response.Fail(c, errors.CodeNotFound, "Volume not found")
+		return false
+	}
+	if vol.ProjectID != projectID {
+		response.Fail(c, errors.CodeForbidden, "Access denied")
+		return false
+	}
+	return true
 }
 
 type RunWorkflowRequest struct {
@@ -77,6 +127,7 @@ type ChapterRewriteRequest struct {
 }
 
 type ChapterBatchItem struct {
+	ClientDocumentID string `json:"client_document_id"`
 	Title      string `json:"title"`
 	OrderIndex int    `json:"order_index"`
 	Outline    string `json:"outline"`
@@ -97,6 +148,18 @@ func (h *WorkflowHandler) RunWorld(c *gin.Context) {
 	h.runWorkflow(c, "world", "世界观生成")
 }
 
+func (h *WorkflowHandler) RunWizardWorld(c *gin.Context) {
+	h.runWorkflow(c, "wizard.world", "向导·世界观")
+}
+
+func (h *WorkflowHandler) RunWizardCharacters(c *gin.Context) {
+	h.runWorkflow(c, "wizard.characters", "向导·角色")
+}
+
+func (h *WorkflowHandler) RunWizardOutline(c *gin.Context) {
+	h.runWorkflow(c, "wizard.outline", "向导·大纲")
+}
+
 func (h *WorkflowHandler) RunPolish(c *gin.Context) {
 	h.runWorkflow(c, "polish", "章节润色")
 }
@@ -105,6 +168,15 @@ func (h *WorkflowHandler) RunChapterGenerate(c *gin.Context) {
 	var req ChapterGenerateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
+		return
+	}
+	if !h.ensureProjectOwner(c, req.ProjectID) {
+		return
+	}
+	if !h.ensureDocumentOwner(c, req.DocumentID) {
+		return
+	}
+	if !h.ensureVolumeInProject(c, req.ProjectID, req.VolumeID) {
 		return
 	}
 
@@ -148,6 +220,7 @@ func (h *WorkflowHandler) RunChapterGenerate(c *gin.Context) {
 		Provider:     req.Provider,
 		Path:         req.Path,
 		Body:         req.Body,
+		AuthorizationHeader: c.GetHeader("Authorization"),
 		WriteBack: service.ChapterWriteBack{
 			Mode:       req.WriteBack.Mode,
 			SetStatus:  req.WriteBack.SetStatus,
@@ -172,6 +245,12 @@ func (h *WorkflowHandler) RunChapterAnalyze(c *gin.Context) {
 	var req ChapterAnalyzeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
+		return
+	}
+	if !h.ensureProjectOwner(c, req.ProjectID) {
+		return
+	}
+	if !h.ensureDocumentOwner(c, req.DocumentID) {
 		return
 	}
 
@@ -205,6 +284,7 @@ func (h *WorkflowHandler) RunChapterAnalyze(c *gin.Context) {
 		Provider:     req.Provider,
 		Path:         req.Path,
 		Body:         req.Body,
+		AuthorizationHeader: c.GetHeader("Authorization"),
 		WriteBack: service.ChapterWriteBack{
 			SetStatus:  req.WriteBack.SetStatus,
 			SetSummary: req.WriteBack.SetSummary,
@@ -227,6 +307,12 @@ func (h *WorkflowHandler) RunChapterRewrite(c *gin.Context) {
 	var req ChapterRewriteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
+		return
+	}
+	if !h.ensureProjectOwner(c, req.ProjectID) {
+		return
+	}
+	if !h.ensureDocumentOwner(c, req.DocumentID) {
 		return
 	}
 
@@ -261,6 +347,7 @@ func (h *WorkflowHandler) RunChapterRewrite(c *gin.Context) {
 		Provider:     req.Provider,
 		Path:         req.Path,
 		Body:         req.Body,
+		AuthorizationHeader: c.GetHeader("Authorization"),
 		WriteBack: service.ChapterWriteBack{
 			Mode:      req.WriteBack.Mode,
 			SetStatus: req.WriteBack.SetStatus,
@@ -289,6 +376,12 @@ func (h *WorkflowHandler) RunChapterBatch(c *gin.Context) {
 		response.Fail(c, errors.CodeInvalidParams, "Items required")
 		return
 	}
+	if !h.ensureProjectOwner(c, req.ProjectID) {
+		return
+	}
+	if !h.ensureVolumeInProject(c, req.ProjectID, req.VolumeID) {
+		return
+	}
 
 	userID := getUserIDFromContext(c)
 	if userID == 0 {
@@ -314,6 +407,7 @@ func (h *WorkflowHandler) RunChapterBatch(c *gin.Context) {
 	items := make([]service.ChapterBatchItem, 0, len(req.Items))
 	for _, item := range req.Items {
 		items = append(items, service.ChapterBatchItem{
+			ClientDocumentID: item.ClientDocumentID,
 			Title:      item.Title,
 			OrderIndex: item.OrderIndex,
 			Outline:    item.Outline,
@@ -330,6 +424,7 @@ func (h *WorkflowHandler) RunChapterBatch(c *gin.Context) {
 		Provider:     req.Provider,
 		Path:         req.Path,
 		BodyTemplate: req.BodyTemplate,
+		AuthorizationHeader: c.GetHeader("Authorization"),
 		WriteBack: service.ChapterWriteBack{
 			SetStatus:  req.WriteBack.SetStatus,
 			SetSummary: req.WriteBack.SetSummary,
@@ -343,6 +438,7 @@ func (h *WorkflowHandler) RunChapterBatch(c *gin.Context) {
 	response.SuccessWithData(c, gin.H{
 		"session":   result.Session,
 		"documents": result.Documents,
+		"results":   result.Results,
 	})
 }
 
@@ -350,6 +446,9 @@ func (h *WorkflowHandler) runWorkflow(c *gin.Context, formatType string, default
 	var req RunWorkflowRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
+		return
+	}
+	if !h.ensureProjectOwner(c, req.ProjectID) {
 		return
 	}
 
@@ -393,6 +492,7 @@ func (h *WorkflowHandler) runWorkflow(c *gin.Context, formatType string, default
 		Path:         req.Path,
 		Body:         req.Body,
 		Session:      sess,
+		AuthorizationHeader: c.GetHeader("Authorization"),
 	}
 
 	result, err := h.workflowService.RunStep(runReq)

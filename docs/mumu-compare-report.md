@@ -48,8 +48,8 @@
 |---|---|---|---|---|---|
 | 立项与设定层 | **部分实现**：项目 CRUD + 统一实体模型（角色/组织/设定等） | Project、Entity、EntityLink | `/api/v1/projects`、`/api/v1/projects/:project_id/entities` | REST CRUD | `internal/router/router.go:L169-L234`；`internal/model/entity.go:L15-L69`；`internal/handler/entity_handler.go:L61-L218` |
 | 向导（SSE） | **部分实现**：前端有向导，但非 SSE；后端有工作流 SSE | Session/SessionStep | `NovelWizard` 调 `generateNovelBlueprint`；SSE 订阅会话流 | 非向导链路；SSE 用于工作流输出 | `web/components/NovelWizard.tsx:L12-L101`；`internal/router/router.go:L297-L302`；`docs/api.md:L930-L1077` |
-| 章节生产线 | **部分实现**：文档 CRUD；工作流仅“世界观/润色” | Document | `/api/v1/projects/:project_id/documents` | 无章节生成/分析/重写/批量接口 | `internal/handler/document_handler.go:L25-L257`；`internal/router/router.go:L188-L219` |
-| 工具增强（插件/MCP） | **部分实现**：插件管理/调用存在；缺少工具注入到 AI | Plugin、PluginCapability | `/api/v1/plugins/*` + invoke/invoke-async | 插件调用 API | `internal/model/plugin.go:L9-L55`；`internal/handler/plugin_handler.go:L52-L337`；`internal/router/router.go:L246-L263` |
+| 章节生产线 | **已实现（MVP）**：章节生成/分析/重写/批量工作流均已落地，并通过 SSE 推送进度/完成事件；结果可写回 Document | Document、Session/SessionStep | `/api/v1/workflows/chapters/generate` `/analyze` `/rewrite` `/batch` | `progress.updated` + `workflow.done` + `step.appended`；批量支持 `client_document_id` 映射 | `internal/router/router.go:L297-L309`；`internal/handler/workflow_handler.go:L105-L260`；`internal/service/workflow_service.go:L211-L461` |
+| 工具增强（插件/MCP） | **已实现（OpenAI tools MVP）**：启用插件能力会被注入到 OpenAI `/chat/completions` 请求；若返回 `tool_calls` 则创建 Job 执行并回填 SessionStep | Plugin、PluginCapability、Job、SessionStep | `/api/v1/plugins/*` + `/api/v1/jobs/*` + workflow 自动 dispatch | tools 注入仅对 OpenAI 兼容路径；tool_calls→Job→SessionStep（step.appended + job.* SSE） | `internal/service/workflow_service.go:L468-L595`；`internal/service/job_service.go`；`internal/handler/plugin_handler.go:L39-L373` |
 | 关系图谱（CP） | **部分实现**：实体关联 + 前端图谱 + 关系边 API | EntityLink | 图谱组件渲染实体与文档关联 | 前端图谱（本地数据） | `internal/model/entity.go:L54-L69`；`internal/handler/entity_handler.go:L266-L309`；`web/components/GraphVisualizer.tsx:L35-L149` |
 | 一致性约束（模板/风格） | **部分实现**：模板 CRUD；前端 AI 提示词模板工具 | Template | `/api/v1/projects/:project_id/templates` | 模板驱动提示词 | `internal/handler/template_handler.go:L26-L188`；`web/components/AIAssistant.tsx:L75-L260` |
 | 智能上下文构建 | **未实现**：未发现上下文构建/向量检索服务，仅有语料库模块 | CorpusStory | `/api/v1/corpus/*` | 语料库 CRUD | `internal/handler/corpus_handler.go:L23-L211` |
@@ -71,9 +71,9 @@
 
 | 模块 | 状态 | 缺口描述 | 依赖项 | 复杂度 | 风险点 | 证据引用 |
 |---|---|---|---|---|---|---|
-| 立项向导（SSE分步） | 部分实现 | 我方无“分步SSE向导链路”，现为前端本地向导 | Workflow/SSE/SessionStep | 中 | 需定义步骤协议与数据结构 | MuMu §6.1；`NovelWizard.tsx:L12-L101` |
-| 章节生产线 | 部分实现 | 缺章节生成/分析/重写/批量接口 | Workflow/AI 代理/SSE | 高 | 长链路稳定性 | MuMu §6.2；`document_handler.go:L25-L257` |
-| MCP 工具注入 | 未实现 | 插件存在但未注入 AI 调用 | AIService/插件工具协议 | 高 | 跨模型工具协议适配 | MuMu §4.3；`plugin_handler.go:L52-L337` |
+| 立项向导（SSE分步） | 缺失（P0） | 我方无“分步 SSE 向导链路”，现为前端本地向导直调 AI；需改为后端 workflow 统一驱动 + session SSE 订阅 | Workflow/SSE/SessionStep/Project 持久化 | 中 | 向导/章节生成链路不统一导致质量门禁、工具调用、审计难落地 | `web/components/NovelWizard.tsx`；`internal/service/workflow_service.go` |
+| 章节生产线 | 已实现（MVP） | 已具备 generate/analyze/rewrite/batch；P0 重点转为：权限校验补齐、前端统一接入、质量门禁与导出闭环 | 权限校验/前端接入/Quality/Formatting/Files | 中 | 越权风险、前端链路割裂 | `internal/router/router.go:L297-L309`；`internal/service/workflow_service.go:L211-L461` |
+| MCP 工具注入 | 已实现（OpenAI tools MVP） | 已实现 tools 注入与 tool_calls→Job 执行回填；P0/P1 重点：接口响应一致、工具回填 step 规范化、补齐“工具结果再喂给模型”的多轮闭环 | Job/SessionStep/AI 调用封装 | 中-高 | provider 协议差异；多轮对话状态管理 | `internal/service/workflow_service.go:L468-L639`；`internal/service/job_service.go` |
 | 关系图谱（CP） | 部分实现 | 关系类型库缺失；关系边 API 已有（实体链接） | Entity 扩展 | 中 | 关系一致性 | MuMu §5；`internal/model/entity.go:L54-L69`；`internal/handler/entity_handler.go:L266-L309` |
 | 一致性约束（记忆/伏笔） | 部分实现 | 模板有，记忆/伏笔未见 | 新增模块 | 中 | 数据结构变更 | MuMu §6.3；`template_handler.go:L26-L188` |
 | 智能上下文构建 | 未实现 | 未发现上下文构建/向量检索服务 | 章节/记忆/向量检索 | 高 | 成本与复杂度 | MuMu §6.4；`internal/handler/corpus_handler.go:L23-L211` |
@@ -88,32 +88,34 @@
 
 | 里程碑 | 交付能力 | 改动面 | 验收标准 | 证据引用 |
 |---|---|---|---|---|
-| P0 | 向导分步SSE（世界观/角色/大纲）+ 章节生成SSE + 会话追踪 | 后端：Workflow + SSE；前端：Wizard/SSE | 新建项目 → 向导完成 → 生成第一章闭环 | MuMu §6.1/§6.2；`workflow_handler.go:L27-L105` |
-| P1 | 章节分析/重写、模板驱动一致性 | 后端：模板/分析；前端：分析/重写入口 | 章节可分析并重写；模板可驱动 | MuMu §6.2/§6.3；`template_handler.go:L26-L188` |
-| P2 | RTCO上下文构建 + 记忆/伏笔 + 关系图谱增强 | 后端：上下文/向量检索；前端：图谱/伏笔管理 | 长篇一致性提升（50+章） | MuMu §6.4/§5；`GraphVisualizer.tsx:L35-L149` |
+| P0（先闭环） | **统一生成链路闭环**：修复后端硬阻塞 + 权限校验 + 向导改为后端 workflow + SSE；向导完成后可生成第一章写回 Document；润色/质量/排版/下载闭环可跑通 | 后端：Router 初始化顺序、权限校验、Workflow/Wizard、AI proxy 安全、Formatting/Quality 配置注入、响应契约统一；前端：Wizard/Editor 工作流接入、SSE 时间线 | 登录→创建项目→启动向导（SSE 分步产出）→生成第一章（写回 Document）→润色（写回）→质量检查→排版→生成文件并下载 | MuMu §6.1/§6.2；`internal/service/workflow_service.go`；`web/components/NovelWizard.tsx` |
+| P1（增强体验） | **写作增强能力**：章节分析/重写 UI 与结果归档；模板/风格更深接入 workflow；插件工具调用结果可视化与可复盘；导出链路体验增强（进度/任务） | 后端：分析/重写产物结构化、SessionStep 规范化；前端：章节页入口、对比/回退、Session 详情页 | 章节可一键分析/重写；可查看历史 step 与 tool 结果；生成与任务状态可追踪 | MuMu §6.2/§6.3；`internal/handler/session_handler.go` |
+| P2（长篇一致性） | RTCO 上下文构建 + 记忆/伏笔 + 关系图谱语义增强（关系类型库） + 向量检索 | 后端：ContextBuilder、向量检索；前端：图谱/伏笔管理 | 50+ 章一致性显著提升；支持语义检索召回记忆 | MuMu §6.4/§5 |
 
 ### 4.1 P0 前置修复清单（影响闭环的硬阻塞）
 
 | 项 | 问题 | 影响 | 建议修复方向 | 证据引用 |
 |---|---|---|---|---|
+| Router 依赖初始化顺序 | `workflowService` 使用 `jobService` 时 `jobService` 尚未初始化（编译/运行期硬阻塞） | 后端无法启动或行为异常 | 调整初始化顺序：先 jobRepo/jobService，再 NewWorkflowService | `internal/router/router.go:L74-L86` |
 | 权限校验（Files） | `ListFilesByProject` 仅按 `project_id` 查询，无项目/用户归属校验 | 存在越权读取风险 | 按项目归属校验；或查询时限定 `user_id` | `internal/handler/file_handler.go:L186-L225`；`internal/service/file_service.go:L87-L88` |
 | 权限校验（Documents） | `ListByProject`/`GetByID` 未校验项目/文档归属；Service 层仅校验“项目是否存在” | 项目文档可能被越权读取 | List/Create/Detail 统一校验 project.UserID==当前用户 | `internal/handler/document_handler.go:L120-L189`；`internal/service/document_service.go:L83-L100` |
 | AI 代理 allowlist | 仅拦截 `..`，缺少路径白名单 | 可被滥用调用非预期上游路径 | 以 provider+path allowlist 约束（或映射成固定枚举） | `internal/handler/ai_proxy_handler.go:L34-L58`；`internal/handler/ai_proxy_stream_handler.go:L34-L58`；`internal/service/workflow_service.go:L98-L101` |
 | 配置注入 | Quality/Formatting 用 `config.Config{}` 初始化 | 阈值与规则不稳定，环境不一致 | 统一从配置中心注入真实配置 | `internal/router/router.go:L101-L106` |
+| 质量门禁文案 | 数值转字符串使用 `string(rune(n))`，导致提示字符异常 | 质量反馈不可读，影响用户判读与联调 | 使用 `strconv.Itoa(n)` 生成字符串；段落序号同理 | `internal/service/quality_service.go:L71-L91` |
 | 响应契约一致性 | `ProjectHandler.Export` 直接 `c.JSON` | 与统一 response 包不一致，前端易踩坑 | 统一使用 `response.SuccessWithData` | `internal/handler/project_handler.go:L404-L442` |
+| 插件异步接口响应 | `InvokePluginAsync` 使用 `c.JSON(202, response.Envelope{...})`，未走 response 包封装 | 返回结构不一致，前端需要分支处理 | 统一为 `response.SuccessWithData`（保持 202/Location 头不变） | `internal/handler/plugin_handler.go:L339-L372` |
 
 ---
 
-1. 将工作流扩展为“向导分步SSE”（世界观/角色/大纲）。
-2. Wizard 改为调用 `/api/v1/workflows/*` + SSE 会话流。
-3. 新增“章节生成SSE”工作流，落地 SessionStep。
-4. 章节内容写回 Document，形成持续写作数据层。
-5. 保留并打通“章节润色”工作流回写文档。
-6. 模板管理接入向导/章节生成作为 Prompt 配置入口。
-7. 实体（角色/组织）与章节关联基础链路（EntityLink）。
-8. 会话详情页 SSE 实时追加 step 内容。
-9. AI 代理统一调用与安全校验（path 白名单）。
-10. 验收：新建项目 → 向导完成 → 生成第一章 → 润色 → 保存。
+1. 修复 Router 依赖初始化顺序（workflow/job）与响应契约不一致点（Export、InvokePluginAsync）。
+2. 修复 P0 权限校验缺口（Documents/Files/Volumes/Entities 至少覆盖对外暴露的 list/get/update/delete）。
+3. 向导分步 SSE（世界观/角色/大纲）：后端增加 wizard 工作流入口；前端 Wizard 改为调用 workflow + 订阅 session SSE。
+4. 章节生成闭环：复用已实现 `/api/v1/workflows/chapters/generate`，向导完成后触发生成第一章并写回 Document。
+5. 保留并打通“章节润色”工作流回写文档（已存在 polish workflow，补齐前端调用入口与写回策略一致性）。
+6. AI 代理安全：增加 provider+path allowlist（同步与流式代理一致）。
+7. 质量门禁文案修复与配置注入（Formatting/Quality 从 config.Get() 注入）。
+8. SSE：保持现有 step/progress/done 事件协议，补齐 heartbeat（可选，但建议 P0）。
+9. 验收：新建项目 → 向导 SSE 完成 → 生成第一章写回 Document → 润色写回 → 可导出/下载。
 
 ---
 
@@ -121,6 +123,8 @@
 
 | 项 | 说明 | 证据引用 |
 |---|---|---|
+| 章节生产线接口 | 已存在 chapters generate/analyze/rewrite/batch 工作流，并通过 SSE 推送 progress/done | `internal/router/router.go:L297-L309`；`internal/service/workflow_service.go:L211-L461` |
+| MCP tools 注入与 tool_calls | 已实现 OpenAI /chat/completions tools 注入与 tool_calls→Job 执行回填 | `internal/service/workflow_service.go:L468-L639`；`internal/service/job_service.go` |
 | 关系类型库/关系边 API | 未发现关系类型库；关系边 API 以实体链接形式已存在（entities/:id/links） | `internal/model/entity.go:L54-L69`；`internal/handler/entity_handler.go:L266-L309`；`internal/router/router.go:L224-L234` |
 | 记忆/伏笔/上下文构建 | 未发现上下文构建/向量检索服务，当前仅有语料库模块 | `internal/handler/corpus_handler.go:L23-L211` |
 | 前端路由结构 | 入口由 React Router 渲染 Layout，路由映射集中在 Layout 中 | `web/App.tsx:L9-L26`；`web/components/Layout.tsx:L19-L214` |
@@ -142,7 +146,7 @@
 
 | 主题 | 发现 | 风险/影响 | 证据引用 |
 |---|---|---|---|
-| 模块边界 | 工作流仅覆盖“世界观/润色”，未覆盖章节生成/分析/重写 | 闭环不完整 | `internal/router/router.go:L297-L302`；`internal/handler/workflow_handler.go:L37-L105` |
+| 模块边界 | 工作流已覆盖“世界观/润色 + 章节 generate/analyze/rewrite/batch”，但缺少“向导分步 SSE”与前端统一接入闭环 | 闭环仍不完整（链路割裂） | `internal/router/router.go:L297-L309`；`internal/service/workflow_service.go:L211-L461` |
 | 插件/MCP | 插件管理完整，但未见 AI 调用时的工具注入链路 | 无法复现 MuMu MCP 核心能力 | `internal/handler/plugin_handler.go:L52-L337`；`web/services/pluginService.ts:L127-L229` |
 | 图谱 | 有实体关联与前端图谱，关系边 API 已有但缺关系类型库 | 关系图谱语义不足 | `internal/model/entity.go:L54-L69`；`internal/handler/entity_handler.go:L266-L309`；`web/components/GraphVisualizer.tsx:L35-L149` |
 | 质量门禁 | 质量接口存在但未与章节生成链路闭环 | 生成质量不可控 | `internal/router/router.go:L347-L352` |
@@ -152,9 +156,9 @@
 
 | 位置 | 发现 | 风险/影响 | 证据引用 |
 |---|---|---|---|
-| AI 代理 | 仅校验 path 是否含 `..`，无 allowlist（包含 workflow 入口） | 可能被滥用调用非预期路径 | `internal/handler/ai_proxy_handler.go:L42-L69`；`internal/handler/ai_proxy_stream_handler.go:L42-L69`；`internal/service/workflow_service.go:L98-L101` |
+| AI 代理 | 仅校验 path 是否含 `..`，无 allowlist（workflow 与 AI proxy 均受影响） | 可能被滥用调用非预期路径 | `internal/handler/ai_proxy_handler.go`；`internal/handler/ai_proxy_stream_handler.go`；`internal/service/ai_call.go` |
 | SSE Hub | 无心跳/超时治理；仅在 client 断开时移除 | 长连接资源占用不可控 | `pkg/sse/sse.go:L52-L125` |
-| 向导生成 | 前端向导生成本地 ID（Date.now），与后端 ID 不一致 | 前后端数据脱节风险 | `web/components/NovelWizard.tsx:L41-L99` |
+| 向导生成 | 前端向导生成本地 ID（Date.now），与后端 ID 不一致；且向导直调 AI 未落 Session/Step | 前后端数据脱节、无法复盘与治理 | `web/components/NovelWizard.tsx` |
 | 插件文档 | 前端插件文档内置 Python 示例 | Go 复现目标有误导 | `web/components/PluginManager.tsx:L246-L260` |
 | 章节写作 | 编辑器 AI 生成走前端调用，后端工作流未统一 | 生成链路难治理 | `web/components/Editor.tsx:L62-L132` |
 | 会话状态 | 会话状态由前端“更新时间”推断 | 无明确状态机 | `web/components/WorkflowSessions.tsx:L54-L67` |

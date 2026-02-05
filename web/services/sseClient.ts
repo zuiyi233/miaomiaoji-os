@@ -4,7 +4,19 @@
 import { getToken, getApiBaseUrl } from './apiClient';
 
 // SSE 事件类型（与后端 pkg/sse/sse.go 对应）
-export type SSEEventType = 'step.appended' | 'quality.checked' | 'export.ready' | 'error';
+export type SSEEventType =
+  | 'step.appended'
+  | 'quality.checked'
+  | 'export.ready'
+  | 'progress.updated'
+  | 'workflow.done'
+  | 'job.created'
+  | 'job.started'
+  | 'job.progress'
+  | 'job.failed'
+  | 'job.succeeded'
+  | 'job.canceled'
+  | 'error';
 
 // SSE 事件数据结构
 export interface SSEEventData<T = unknown> {
@@ -23,6 +35,8 @@ export interface SSEClientConfig {
   onStepAppended?: (data: StepAppendedData) => void;
   onQualityChecked?: (data: QualityCheckedData) => void;
   onExportReady?: (data: ExportReadyData) => void;
+  onProgressUpdated?: (data: ProgressUpdatedData) => void;
+  onWorkflowDone?: (data: WorkflowDoneData) => void;
   onError?: (error: SSEErrorData) => void;
   onStateChange?: (state: ConnectionState) => void;
   // 重连配置
@@ -38,6 +52,8 @@ export interface StepAppendedData {
   step_id: number;
   title: string;
   content: string;
+  job_uuid?: string;
+  plugin_id?: number;
   timestamp: string;
 }
 
@@ -53,6 +69,18 @@ export interface ExportReadyData {
   export_id: string;
   format: string;
   file_url: string;
+  timestamp: string;
+}
+
+export interface ProgressUpdatedData {
+  progress: number;
+  message?: string;
+  timestamp: string;
+}
+
+export interface WorkflowDoneData {
+  mode: string;
+  document_id?: number;
   timestamp: string;
 }
 
@@ -99,6 +127,8 @@ export class SSEClient {
       onStepAppended: config.onStepAppended || (() => {}),
       onQualityChecked: config.onQualityChecked || (() => {}),
       onExportReady: config.onExportReady || (() => {}),
+      onProgressUpdated: config.onProgressUpdated || (() => {}),
+      onWorkflowDone: config.onWorkflowDone || (() => {}),
       onError: config.onError || (() => {}),
       onStateChange: config.onStateChange || (() => {}),
       maxRetries: config.maxRetries ?? 10,
@@ -168,6 +198,12 @@ export class SSEClient {
           break;
         case 'export.ready':
           this.config.onExportReady(parsed.data as ExportReadyData);
+          break;
+        case 'progress.updated':
+          this.config.onProgressUpdated(parsed.data as ProgressUpdatedData);
+          break;
+        case 'workflow.done':
+          this.config.onWorkflowDone(parsed.data as WorkflowDoneData);
           break;
         case 'error':
           this.config.onError(parsed.data as SSEErrorData);
@@ -322,6 +358,8 @@ export class EventSourceAdapter {
       onStepAppended: config.onStepAppended || (() => {}),
       onQualityChecked: config.onQualityChecked || (() => {}),
       onExportReady: config.onExportReady || (() => {}),
+      onProgressUpdated: config.onProgressUpdated || (() => {}),
+      onWorkflowDone: config.onWorkflowDone || (() => {}),
       onError: config.onError || (() => {}),
       onStateChange: config.onStateChange || (() => {}),
       maxRetries: config.maxRetries ?? 10,
@@ -360,7 +398,20 @@ export class EventSourceAdapter {
     };
 
     // 监听各类事件
-    const eventTypes: SSEEventType[] = ['step.appended', 'quality.checked', 'export.ready', 'error'];
+    const eventTypes: SSEEventType[] = [
+      'step.appended',
+      'quality.checked',
+      'export.ready',
+      'progress.updated',
+      'workflow.done',
+      'job.created',
+      'job.started',
+      'job.progress',
+      'job.failed',
+      'job.succeeded',
+      'job.canceled',
+      'error',
+    ];
     eventTypes.forEach(type => {
       this.eventSource?.addEventListener(type, (e: MessageEvent) => {
         try {
@@ -376,6 +427,20 @@ export class EventSourceAdapter {
               break;
             case 'export.ready':
               this.config.onExportReady(parsed.data as ExportReadyData);
+              break;
+            case 'progress.updated':
+              this.config.onProgressUpdated(parsed.data as ProgressUpdatedData);
+              break;
+            case 'workflow.done':
+              this.config.onWorkflowDone(parsed.data as WorkflowDoneData);
+              break;
+            // job.* 事件目前仅透传给 onEvent，由业务组件按需订阅
+            case 'job.created':
+            case 'job.started':
+            case 'job.progress':
+            case 'job.failed':
+            case 'job.succeeded':
+            case 'job.canceled':
               break;
             case 'error':
               this.config.onError(parsed.data as SSEErrorData);

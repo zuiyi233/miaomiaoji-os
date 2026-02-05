@@ -40,11 +40,97 @@ export type RunWorkflowPayload = {
   body: string;
 };
 
+export type ChapterWriteBack = {
+  mode?: string;
+  set_status?: string;
+  set_summary?: boolean;
+};
+
+export type ChapterGeneratePayload = {
+  project_id: number;
+  session_id?: number;
+  document_id?: number;
+  volume_id?: number;
+  title?: string;
+  order_index?: number;
+  provider: string;
+  path: string;
+  body: string;
+  write_back?: ChapterWriteBack;
+};
+
+export type ChapterAnalyzePayload = {
+  project_id: number;
+  session_id?: number;
+  document_id: number;
+  provider: string;
+  path: string;
+  body: string;
+  write_back?: ChapterWriteBack;
+};
+
+export type ChapterRewritePayload = {
+  project_id: number;
+  session_id?: number;
+  document_id: number;
+  rewrite_mode?: string;
+  provider: string;
+  path: string;
+  body: string;
+  write_back?: ChapterWriteBack;
+};
+
+export type ChapterBatchItem = {
+  client_document_id?: string;
+  title: string;
+  order_index?: number;
+  outline: string;
+};
+
+export type ChapterBatchPayload = {
+  project_id: number;
+  session_id?: number;
+  volume_id?: number;
+  items: ChapterBatchItem[];
+  provider: string;
+  path: string;
+  body_template: string;
+  write_back?: ChapterWriteBack;
+};
+
 export type RunWorkflowResponse = {
   session: SessionDTO;
   step: SessionStepDTO;
   content: string;
   raw: any;
+};
+
+export type ChapterGenerateResponse = {
+  session: SessionDTO;
+  document: any;
+  steps: SessionStepDTO[];
+  content: string;
+  raw: any;
+};
+
+export type ChapterAnalyzeResponse = {
+  session: SessionDTO;
+  document: any;
+  content: string;
+  raw: any;
+};
+
+export type ChapterRewriteResponse = {
+  session: SessionDTO;
+  document: any;
+  content: string;
+  raw: any;
+};
+
+export type ChapterBatchResponse = {
+  session: SessionDTO;
+  documents: any[];
+  results?: Array<{ client_document_id: string; document: any }>;
 };
 
 export async function listSessionsApi(page = 1, pageSize = 20): Promise<SessionListResponse> {
@@ -75,8 +161,57 @@ export async function runWorldWorkflowApi(payload: RunWorkflowPayload): Promise<
   });
 }
 
+export async function runWizardWorldWorkflowApi(payload: RunWorkflowPayload): Promise<RunWorkflowResponse> {
+	return apiRequest<RunWorkflowResponse>('/api/v1/workflows/wizard/world', {
+		method: 'POST',
+		body: JSON.stringify(payload),
+	});
+}
+
+export async function runWizardCharactersWorkflowApi(payload: RunWorkflowPayload): Promise<RunWorkflowResponse> {
+	return apiRequest<RunWorkflowResponse>('/api/v1/workflows/wizard/characters', {
+		method: 'POST',
+		body: JSON.stringify(payload),
+	});
+}
+
+export async function runWizardOutlineWorkflowApi(payload: RunWorkflowPayload): Promise<RunWorkflowResponse> {
+	return apiRequest<RunWorkflowResponse>('/api/v1/workflows/wizard/outline', {
+		method: 'POST',
+		body: JSON.stringify(payload),
+	});
+}
+
 export async function runPolishWorkflowApi(payload: RunWorkflowPayload): Promise<RunWorkflowResponse> {
   return apiRequest<RunWorkflowResponse>('/api/v1/workflows/polish', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function runChapterGenerateApi(payload: ChapterGeneratePayload): Promise<ChapterGenerateResponse> {
+  return apiRequest<ChapterGenerateResponse>('/api/v1/workflows/chapters/generate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function runChapterAnalyzeApi(payload: ChapterAnalyzePayload): Promise<ChapterAnalyzeResponse> {
+  return apiRequest<ChapterAnalyzeResponse>('/api/v1/workflows/chapters/analyze', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function runChapterRewriteApi(payload: ChapterRewritePayload): Promise<ChapterRewriteResponse> {
+  return apiRequest<ChapterRewriteResponse>('/api/v1/workflows/chapters/rewrite', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function runChapterBatchApi(payload: ChapterBatchPayload): Promise<ChapterBatchResponse> {
+  return apiRequest<ChapterBatchResponse>('/api/v1/workflows/chapters/batch', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

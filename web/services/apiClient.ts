@@ -81,9 +81,11 @@ export async function apiRequest<T>(
   init: RequestInit & { skipAuth?: boolean } = {}
 ): Promise<T> {
   const url = buildUrl(path);
-  if (url.includes('/api/v1/projects/')) {
-    throw new Error('API 路径不应包含末尾斜杠: /api/v1/projects/');
-  }
+	// 仅阻止「/api/v1/projects/」这种末尾多一个斜杠的路径。
+	// 允许：/api/v1/projects/:id、/api/v1/projects/:id/documents 等。
+	if (/\/api\/v1\/projects\/$/.test(url)) {
+		throw new Error('API 路径不应包含末尾斜杠: /api/v1/projects/');
+	}
 
   const headers = new Headers(init.headers || undefined);
 

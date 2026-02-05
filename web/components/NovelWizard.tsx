@@ -1,8 +1,13 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useProject } from '../contexts/ProjectContext';
-import { generateNovelBlueprint, DEFAULT_AI_SETTINGS } from '../services/aiService';
-import { Project, Volume, Document, StoryEntity, AIPromptTemplate } from '../types';
+import { Type } from '@google/genai';
+import { buildWorkflowPayload, DEFAULT_AI_SETTINGS } from '../services/aiService';
+import { apiRequest } from '../services/apiClient';
+import { upsertProjectSnapshotApi } from '../services/projectApi';
+import { createSSEClient, ConnectionState, ProgressUpdatedData, StepAppendedData, WorkflowDoneData } from '../services/sseClient';
+import { runChapterGenerateApi, runWizardCharactersWorkflowApi, runWizardOutlineWorkflowApi, runWizardWorldWorkflowApi } from '../services/workflowApi';
+import { Project, Volume, Document, StoryEntity, AIPromptTemplate, ViewMode } from '../types';
 import { Sparkles, ArrowRight, Loader2, ArrowLeft, Check, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface NovelWizardProps {
@@ -10,7 +15,7 @@ interface NovelWizardProps {
 }
 
 export const NovelWizard: React.FC<NovelWizardProps> = ({ onCancel }) => {
-  const { createProject, project: activeProject, projects, theme } = useProject();
+  const { createProject, selectSession, setViewMode, project: activeProject, projects, theme } = useProject();
   
   // Use requested default proxy settings as the seed for new projects
   const wizardAISettings = { ...DEFAULT_AI_SETTINGS };
@@ -20,15 +25,254 @@ export const NovelWizard: React.FC<NovelWizardProps> = ({ onCancel }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [blueprint, setBlueprint] = useState<any>(null);
 
+  const [backendProjectId, setBackendProjectId] = useState<number | null>(null);
+  const [wizardSessionId, setWizardSessionId] = useState<number | null>(null);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const [progress, setProgress] = useState<number | null>(null);
+  const [doneInfo, setDoneInfo] = useState<{ mode: string; documentId?: number } | null>(null);
+  const [wizardLog, setWizardLog] = useState<Array<{ title: string; content: string }>>([]);
+  const [generatedBackendDocumentId, setGeneratedBackendDocumentId] = useState<number | null>(null);
+  const sseRef = useRef<ReturnType<typeof createSSEClient> | null>(null);
+
+  const wizardExternalId = useMemo(() => `w${Date.now()}`, []);
+
+  const ensureBackendProject = async (title: string): Promise<number | null> => {
+    if (backendProjectId && backendProjectId > 0) return backendProjectId;
+    try {
+      // Wizard 阶段也需要后端 project_id 承载 session/step。
+      // 使用 snapshot upsert 创建/更新后端 project 记录。
+      const dto = await upsertProjectSnapshotApi({
+        external_id: wizardExternalId,
+        title: title || '未命名项目',
+        ai_settings: wizardAISettings,
+        snapshot: {
+          id: wizardExternalId,
+          title: title || '未命名项目',
+          coreConflict: '',
+          characterArc: '',
+          ultimateValue: '',
+          worldRules: '',
+          characterCore: '',
+          symbolSettings: '',
+          aiSettings: wizardAISettings,
+          volumes: [],
+          documents: [],
+          entities: [],
+          templates: [],
+        },
+      });
+      if (dto?.id) {
+        setBackendProjectId(dto.id);
+        return dto.id;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const parseJSONSafe = (text: string): any | null => {
+    const raw = (text || '').trim();
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) return null;
+      try {
+        return JSON.parse(match[0]);
+      } catch {
+        return null;
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!wizardSessionId || wizardSessionId <= 0) return;
+    const client = createSSEClient({
+      sessionId: wizardSessionId,
+      onStateChange: (state) => setConnectionState(state),
+      onStepAppended: (data: StepAppendedData) => {
+        setWizardLog((prev) => {
+          const next = [...prev];
+          next.push({ title: data.title || '步骤', content: typeof data.content === 'string' ? data.content : '' });
+          return next.slice(-8);
+        });
+      },
+      onProgressUpdated: (data: ProgressUpdatedData) => {
+        if (typeof data.progress === 'number') {
+          setProgress(Math.max(0, Math.min(100, Math.round(data.progress))));
+        }
+      },
+      onWorkflowDone: (data: WorkflowDoneData) => {
+        setDoneInfo({ mode: data.mode || 'wizard', documentId: data.document_id });
+        setProgress(100);
+      },
+    });
+    sseRef.current = client;
+    client.connect();
+    return () => {
+      client.disconnect();
+      sseRef.current = null;
+    };
+  }, [wizardSessionId]);
+
   const handleGenerate = async () => {
     if (!sparkInput.trim()) return;
     setIsGenerating(true);
+    setWizardSessionId(null);
+    setBlueprint(null);
+    setWizardLog([]);
+    setDoneInfo(null);
+    setProgress(null);
+    setGeneratedBackendDocumentId(null);
     try {
-        const result = await generateNovelBlueprint(sparkInput, wizardAISettings);
-        if (result) {
-            setBlueprint(result);
-            setStep(2);
-        }
+      const projectId = await ensureBackendProject('新建项目');
+      if (!projectId) {
+        throw new Error('项目未同步到后端');
+      }
+
+      // Step 1: 世界观
+      const worldSchema = {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          coreConflict: { type: Type.STRING },
+          characterArc: { type: Type.STRING },
+          ultimateValue: { type: Type.STRING },
+          worldRules: { type: Type.STRING },
+          characterCore: { type: Type.STRING },
+          symbolSettings: { type: Type.STRING },
+        },
+        required: ['title', 'coreConflict', 'worldRules'],
+      };
+      const worldSystem = '你是一位世界级的小说架构师。请输出结构化 JSON，不要输出多余文字。';
+      const worldPrompt = `用户创意核心：${sparkInput}\n\n请生成小说核心设定蓝图。`;
+      const worldPayload = buildWorkflowPayload(worldPrompt, worldSystem, wizardAISettings, worldSchema);
+      const worldResult = await runWizardWorldWorkflowApi({
+        project_id: projectId,
+        session_id: wizardSessionId || undefined,
+        title: '向导 · 小说蓝图',
+        step_title: '世界观蓝图',
+        provider: worldPayload.provider,
+        path: worldPayload.path,
+        body: worldPayload.body,
+      });
+      if (worldResult?.session?.id && !wizardSessionId) {
+        setWizardSessionId(worldResult.session.id);
+		selectSession(String(worldResult.session.id));
+      }
+      const sessionId = worldResult?.session?.id || wizardSessionId || undefined;
+      const worldJSON = parseJSONSafe(worldResult?.content || '');
+      if (!worldJSON) {
+        throw new Error('世界观输出解析失败');
+      }
+
+      // Step 2: 角色
+      const characterSchema = {
+        type: Type.OBJECT,
+        properties: {
+          protagonistName: { type: Type.STRING },
+          protagonistDesc: { type: Type.STRING },
+        },
+        required: ['protagonistName', 'protagonistDesc'],
+      };
+      const characterSystem = '你是一位角色塑造专家。请输出结构化 JSON，不要输出多余文字。';
+      const characterPrompt = `书名：${worldJSON.title}\n核心冲突：${worldJSON.coreConflict}\n世界规则：${worldJSON.worldRules}\n\n请为主角设定姓名与简要介绍。`;
+      const characterPayload = buildWorkflowPayload(characterPrompt, characterSystem, wizardAISettings, characterSchema);
+      const characterResult = await runWizardCharactersWorkflowApi({
+        project_id: projectId,
+        session_id: sessionId,
+        title: '向导 · 小说蓝图',
+        step_title: '主角设定',
+        provider: characterPayload.provider,
+        path: characterPayload.path,
+        body: characterPayload.body,
+      });
+      const characterJSON = parseJSONSafe(characterResult?.content || '');
+      if (!characterJSON) {
+        throw new Error('角色输出解析失败');
+      }
+
+      // Step 3: 大纲（第一卷/第一章标题）
+      const outlineSchema = {
+        type: Type.OBJECT,
+        properties: {
+          firstVolumeTitle: { type: Type.STRING },
+          firstVolumeGoal: { type: Type.STRING },
+          firstChapterTitle: { type: Type.STRING },
+        },
+        required: ['firstVolumeTitle', 'firstChapterTitle'],
+      };
+      const outlineSystem = '你是一位精通故事结构的小说策划。请输出结构化 JSON，不要输出多余文字。';
+      const outlinePrompt = `书名：${worldJSON.title}\n主角：${characterJSON.protagonistName}\n核心冲突：${worldJSON.coreConflict}\n\n请生成第一卷标题/目标，以及第一章标题。`;
+      const outlinePayload = buildWorkflowPayload(outlinePrompt, outlineSystem, wizardAISettings, outlineSchema);
+      const outlineResult = await runWizardOutlineWorkflowApi({
+        project_id: projectId,
+        session_id: sessionId,
+        title: '向导 · 小说蓝图',
+        step_title: '第一卷与第一章',
+        provider: outlinePayload.provider,
+        path: outlinePayload.path,
+        body: outlinePayload.body,
+      });
+      const outlineJSON = parseJSONSafe(outlineResult?.content || '');
+      if (!outlineJSON) {
+        throw new Error('大纲输出解析失败');
+      }
+
+      const merged = {
+        ...worldJSON,
+        ...characterJSON,
+        ...outlineJSON,
+      };
+
+		// Step 4: 创建后端卷与文档，并写回第一章正文
+		type VolumeDTO = { id: number; title: string };
+		type DocumentDTO = { id: number; title: string };
+		const volume = await apiRequest<VolumeDTO>(`/api/v1/projects/${projectId}/volumes`, {
+			method: 'POST',
+			body: JSON.stringify({
+				title: merged.firstVolumeTitle || '第一卷',
+				order_index: 1,
+			}),
+		});
+		const backendDoc = await apiRequest<DocumentDTO>(`/api/v1/projects/${projectId}/documents`, {
+			method: 'POST',
+			body: JSON.stringify({
+				title: merged.firstChapterTitle || '第一章',
+				content: '',
+				status: '草稿',
+				order_index: 1,
+				volume_id: volume?.id,
+			}),
+		});
+
+		const chapterSystem = '你是一位职业小说作者。根据给定的设定与章节标题，写出完整第一章正文。只输出正文。';
+		const chapterPrompt = `书名：${merged.title}\n核心冲突：${merged.coreConflict}\n世界规则：${merged.worldRules}\n主角：${merged.protagonistName}\n主角简介：${merged.protagonistDesc}\n\n第一卷：${merged.firstVolumeTitle}\n第一卷目标：${merged.firstVolumeGoal}\n\n第一章标题：${merged.firstChapterTitle}\n\n请写出第一章正文。`;
+		const chapterPayload = buildWorkflowPayload(chapterPrompt, chapterSystem, wizardAISettings);
+		const chapterResult = await runChapterGenerateApi({
+			project_id: projectId,
+			session_id: sessionId,
+			document_id: backendDoc?.id,
+			volume_id: volume?.id,
+			title: merged.firstChapterTitle,
+			order_index: 1,
+			provider: chapterPayload.provider,
+			path: chapterPayload.path,
+			body: chapterPayload.body,
+			write_back: { set_status: '草稿' },
+		});
+		const chapterText = (chapterResult?.content || '').trim();
+		if (chapterText) {
+			(merged as any).firstChapterContent = chapterText;
+		}
+		if (backendDoc?.id) {
+			setGeneratedBackendDocumentId(backendDoc.id);
+		}
+
+      setBlueprint(merged);
+      setStep(2);
     } catch (e) {
       alert("生成失败，请确认后端供应商配置是否已正确设置。");
     }
@@ -38,7 +282,7 @@ export const NovelWizard: React.FC<NovelWizardProps> = ({ onCancel }) => {
   const handleFinalize = () => {
     if (!blueprint) return;
 
-    const projectId = `p${Date.now()}`;
+    const projectId = wizardExternalId;
     const volId = `v${Date.now()}`;
     const docId = `d${Date.now()}`;
     const entityId = `e${Date.now()}`;
@@ -66,9 +310,10 @@ export const NovelWizard: React.FC<NovelWizardProps> = ({ onCancel }) => {
       }],
       documents: [{
         id: docId,
+		backendId: generatedBackendDocumentId || undefined,
         volumeId: volId,
         title: blueprint.firstChapterTitle || '第一章',
-        content: blueprint.firstChapterContent || '',
+		content: blueprint.firstChapterContent || '',
         status: '草稿',
         order: 0,
         linkedIds: [{ targetId: entityId, type: 'character', relationName: '主角' }],
@@ -150,6 +395,56 @@ export const NovelWizard: React.FC<NovelWizardProps> = ({ onCancel }) => {
                 </>
               )}
             </button>
+
+			{(isGenerating || wizardSessionId) && (
+				<div className="bg-white dark:bg-white/5 border border-paper-200 dark:border-white/10 rounded-3xl p-6 space-y-4 shadow-sm">
+					<div className="flex items-center justify-between">
+						<div className="text-xs font-black uppercase tracking-widest text-ink-400 dark:text-zinc-500">生成进度</div>
+						<div className="text-xs font-bold text-ink-600 dark:text-zinc-300">
+							{wizardSessionId ? `Session #${wizardSessionId}` : '等待会话创建...'}
+						</div>
+					</div>
+					<div className="flex items-center gap-3">
+						<div className="flex-1 h-2 bg-paper-100 dark:bg-zinc-800 rounded-full overflow-hidden border border-paper-200 dark:border-zinc-700">
+							<div
+								className="h-full bg-brand-600 transition-all duration-300"
+								style={{ width: `${progress ?? 0}%` }}
+							/>
+						</div>
+						<div className="text-[10px] font-black uppercase tracking-widest text-ink-400 dark:text-zinc-500 tabular-nums">{progress ?? 0}%</div>
+					</div>
+					<div className="flex items-center justify-between">
+						<div className="text-[10px] font-black uppercase tracking-widest text-ink-300 dark:text-zinc-600">
+							连接状态：{connectionState}
+						</div>
+						{wizardSessionId && (
+							<button
+								onClick={() => {
+									selectSession(String(wizardSessionId));
+									setViewMode(ViewMode.WORKFLOW_DETAIL);
+								}}
+								className="text-[10px] font-black uppercase tracking-widest text-brand-700 dark:text-indigo-300 hover:opacity-80"
+							>
+								查看会话详情
+							</button>
+						)}
+					</div>
+
+					{wizardLog.length > 0 && (
+						<div className="space-y-2">
+							<div className="text-[10px] font-black uppercase tracking-widest text-ink-300 dark:text-zinc-600">实时输出</div>
+							<div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+								{wizardLog.map((item, idx) => (
+									<div key={idx} className="p-3 rounded-2xl bg-paper-50 dark:bg-zinc-900 border border-paper-100 dark:border-zinc-800">
+										<div className="text-xs font-bold text-ink-800 dark:text-zinc-100">{item.title}</div>
+										<pre className="mt-1 whitespace-pre-wrap text-xs text-ink-500 dark:text-zinc-400">{item.content}</pre>
+									</div>
+								))}
+							</div>
+						</div>
+					)}
+				</div>
+			)}
           </div>
         )}
 
@@ -196,12 +491,30 @@ export const NovelWizard: React.FC<NovelWizardProps> = ({ onCancel }) => {
                         />
                       </div>
                    </div>
-                   <div className="p-4 bg-brand-50 dark:bg-indigo-500/10 rounded-xl border border-brand-100 dark:border-indigo-500/20">
+                    <div className="p-4 bg-brand-50 dark:bg-indigo-500/10 rounded-xl border border-brand-100 dark:border-indigo-500/20">
                       <h4 className="text-xs font-bold text-brand-700 dark:text-indigo-300 mb-2">第一卷预设：{blueprint.firstVolumeTitle}</h4>
                       <p className="text-xs text-ink-500 dark:text-gray-400 leading-relaxed">{blueprint.firstVolumeGoal}</p>
-                   </div>
-                </div>
-             </div>
+                    </div>
+
+					<div className="p-4 bg-white/70 dark:bg-zinc-900/60 rounded-xl border border-paper-200 dark:border-zinc-800">
+						<div className="flex items-center justify-between gap-3">
+							<h4 className="text-xs font-black uppercase tracking-widest text-ink-400 dark:text-zinc-500">第一章正文预览</h4>
+							<div className="text-[10px] font-black uppercase tracking-widest text-ink-300 dark:text-zinc-600">
+								{blueprint.firstChapterContent ? '已生成' : '未生成'}
+							</div>
+						</div>
+						{blueprint.firstChapterContent ? (
+							<pre className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink-700 dark:text-zinc-200 max-h-72 overflow-y-auto custom-scrollbar">
+								{blueprint.firstChapterContent}
+							</pre>
+						) : (
+							<div className="mt-3 text-sm text-ink-400 dark:text-zinc-400">
+								第一章正文还在生成或解析失败。你仍然可以先创建项目，然后在编辑器里一键生成。
+							</div>
+						)}
+					</div>
+                 </div>
+              </div>
 
              <div className="flex gap-4">
                 <button 

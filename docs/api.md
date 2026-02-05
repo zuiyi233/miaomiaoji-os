@@ -296,6 +296,167 @@
 
 ---
 
+## SSE 接口
+
+### 建立 SSE 连接
+- **URL**: `GET /api/v1/sse/stream?session_id=xxx`
+- **描述**: 订阅指定会话的实时事件流（步骤追加/进度/完成/任务等）
+- **认证**: 是（JWT）
+- **响应**: `text/event-stream`
+
+### SSE 事件类型
+
+通用字段：
+
+```json
+{
+  "type": "step.appended",
+  "data": {},
+  "timestamp": "2026-02-05T12:00:00Z"
+}
+```
+
+- `step.appended`：会话步骤追加（data: step_id/title/content/timestamp）
+- `progress.updated`：工作流进度更新（data: progress/message/timestamp）
+- `workflow.done`：工作流完成（data: mode/document_id/timestamp）
+- `job.*`：异步任务事件（job.created/job.started/job.progress/job.failed/job.succeeded/job.canceled）
+- `error`：错误事件
+
+---
+
+## 工作流接口
+
+### 世界观生成
+- **URL**: `POST /api/v1/workflows/world`
+- **描述**: 运行世界观工作流（写入 session_steps 并支持 SSE 推送）
+- **认证**: 是（且需有效 AI 权限）
+
+### 向导·世界观
+- **URL**: `POST /api/v1/workflows/wizard/world`
+- **描述**: 向导分步：生成世界观蓝图（写入 session_steps 并支持 SSE 推送）
+- **认证**: 是（且需有效 AI 权限）
+
+### 向导·角色
+- **URL**: `POST /api/v1/workflows/wizard/characters`
+- **描述**: 向导分步：生成角色设定（写入 session_steps 并支持 SSE 推送）
+- **认证**: 是（且需有效 AI 权限）
+
+### 向导·大纲
+- **URL**: `POST /api/v1/workflows/wizard/outline`
+- **描述**: 向导分步：生成第一卷/第一章标题等大纲信息（写入 session_steps 并支持 SSE 推送）
+- **认证**: 是（且需有效 AI 权限）
+
+### 章节润色（旧接口）
+- **URL**: `POST /api/v1/workflows/polish`
+- **描述**: 运行润色工作流（写入 session_steps 并支持 SSE 推送）
+- **认证**: 是（且需有效 AI 权限）
+
+### 章节生成
+- **URL**: `POST /api/v1/workflows/chapters/generate`
+- **描述**: 生成章节内容，并按 write_back 配置写回 documents 表
+- **认证**: 是（且需有效 AI 权限）
+
+请求体（示例）：
+```json
+{
+  "project_id": 1,
+  "session_id": 0,
+  "document_id": 0,
+  "volume_id": 1,
+  "title": "第1章",
+  "order_index": 1,
+  "provider": "gemini",
+  "path": "v1beta/models/xxx:generateContent",
+  "body": "{...}",
+  "write_back": { "set_status": "草稿", "set_summary": false }
+}
+```
+
+### 章节分析
+- **URL**: `POST /api/v1/workflows/chapters/analyze`
+- **描述**: 分析章节内容，可按 write_back.set_summary 写回 documents.summary
+- **认证**: 是（且需有效 AI 权限）
+
+### 章节重写
+- **URL**: `POST /api/v1/workflows/chapters/rewrite`
+- **描述**: 重写章节内容，写回 documents.content
+- **认证**: 是（且需有效 AI 权限）
+
+### 批量生成章节
+- **URL**: `POST /api/v1/workflows/chapters/batch`
+- **描述**: 批量生成多章内容，按条目创建 documents，并通过 SSE 推送进度
+- **认证**: 是（且需有效 AI 权限）
+
+请求体补充字段：
+- `items[].client_document_id`：前端本地章节 ID（字符串），用于后端回传精确映射
+
+响应体补充字段：
+- `results[]`：数组，包含 `client_document_id` 与对应生成的 `document`
+
+---
+
+## 插件接口
+
+### 获取插件列表
+- **URL**: `GET /api/v1/plugins?page=1&page_size=20`
+- **描述**: 获取插件列表（包含 capabilities）
+- **认证**: 是
+
+### 创建插件
+- **URL**: `POST /api/v1/plugins`
+- **描述**: 创建插件记录
+- **认证**: 是
+
+### 启用 / 禁用插件
+- **URL**: `PUT /api/v1/plugins/:plugin_id/enable`
+- **URL**: `PUT /api/v1/plugins/:plugin_id/disable`
+- **描述**: 切换插件启用状态
+- **认证**: 是
+
+### 添加插件能力
+- **URL**: `POST /api/v1/plugins/:plugin_id/capabilities`
+- **描述**: 为插件添加能力（用于工具注入 / tool_calls）
+- **认证**: 是
+
+请求体（示例）：
+```json
+{
+  "cap_id": "extract_entities",
+  "name": "提取实体",
+  "type": "data_provider",
+  "description": "从章节文本中提取人物/地点/组织",
+  "icon": "",
+  "input_schema": {"type":"object","properties":{"text":{"type":"string"}},"required":["text"]},
+  "output_schema": {"type":"object","properties":{"entities":{"type":"array"}}}
+}
+```
+
+### 同步调用插件
+- **URL**: `POST /api/v1/plugins/:plugin_id/invoke`
+- **描述**: 同步调用插件 /invoke
+- **认证**: 是
+
+### 异步调用插件（Job）
+- **URL**: `POST /api/v1/plugins/:plugin_id/invoke/async`
+- **描述**: 创建一个异步 Job 运行插件，结果会写入 jobs 表，并通过 SSE 推送（同时会追加 session_steps）
+- **认证**: 是
+
+---
+
+## Job 接口
+
+### 获取 Job
+- **URL**: `GET /api/v1/jobs/:job_uuid`
+- **描述**: 获取异步任务状态与结果
+- **认证**: 是
+
+### 取消 Job
+- **URL**: `POST /api/v1/jobs/:job_uuid/cancel`
+- **描述**: 取消异步任务
+- **认证**: 是
+
+---
+
 ## 兑换码接口
 
 ### 兑换码验证

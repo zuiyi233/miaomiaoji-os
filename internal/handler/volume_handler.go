@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/service"
 	"novel-agent-os-backend/pkg/errors"
 	"novel-agent-os-backend/pkg/logger"
@@ -12,14 +13,57 @@ import (
 
 // VolumeHandler 卷处理器
 type VolumeHandler struct {
-	volumeService service.VolumeService
+	volumeService  service.VolumeService
+	projectService service.ProjectService
 }
 
 // NewVolumeHandler 创建卷处理器
-func NewVolumeHandler(volumeService service.VolumeService) *VolumeHandler {
+func NewVolumeHandler(volumeService service.VolumeService, projectService service.ProjectService) *VolumeHandler {
 	return &VolumeHandler{
-		volumeService: volumeService,
+		volumeService:  volumeService,
+		projectService: projectService,
 	}
+}
+
+func (h *VolumeHandler) ensureProjectOwner(c *gin.Context, projectID uint) bool {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Error(c, errors.ErrUnauthorized)
+		return false
+	}
+	project, err := h.projectService.GetByID(projectID)
+	if err != nil {
+		response.Error(c, errors.ErrProjectNotFound)
+		return false
+	}
+	if project.UserID != userID {
+		response.Error(c, errors.ErrForbidden)
+		return false
+	}
+	return true
+}
+
+func (h *VolumeHandler) ensureVolumeOwner(c *gin.Context, volumeID uint) (*model.Volume, bool) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Error(c, errors.ErrUnauthorized)
+		return nil, false
+	}
+	volume, err := h.volumeService.GetByID(volumeID)
+	if err != nil {
+		response.Error(c, err)
+		return nil, false
+	}
+	project, err := h.projectService.GetByID(volume.ProjectID)
+	if err != nil {
+		response.Error(c, errors.ErrProjectNotFound)
+		return nil, false
+	}
+	if project.UserID != userID {
+		response.Error(c, errors.ErrForbidden)
+		return nil, false
+	}
+	return volume, true
 }
 
 // CreateVolumeRequest 创建卷请求
@@ -58,6 +102,9 @@ func (h *VolumeHandler) Create(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
+	if !h.ensureProjectOwner(c, projectID) {
+		return
+	}
 
 	var req CreateVolumeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -92,6 +139,9 @@ func (h *VolumeHandler) List(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
+	if !h.ensureProjectOwner(c, projectID) {
+		return
+	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
@@ -119,10 +169,8 @@ func (h *VolumeHandler) GetByID(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
-
-	volume, err := h.volumeService.GetByID(id)
-	if err != nil {
-		response.Error(c, err)
+	volume, ok := h.ensureVolumeOwner(c, id)
+	if !ok {
 		return
 	}
 
@@ -134,6 +182,9 @@ func (h *VolumeHandler) Update(c *gin.Context) {
 	id, err := parseUintParam(c, "volume_id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if _, ok := h.ensureVolumeOwner(c, id); !ok {
 		return
 	}
 
@@ -186,6 +237,9 @@ func (h *VolumeHandler) Delete(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
+	if _, ok := h.ensureVolumeOwner(c, id); !ok {
+		return
+	}
 
 	if err := h.volumeService.Delete(id); err != nil {
 		response.Error(c, err)
@@ -200,6 +254,9 @@ func (h *VolumeHandler) Reorder(c *gin.Context) {
 	projectID, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if !h.ensureProjectOwner(c, projectID) {
 		return
 	}
 

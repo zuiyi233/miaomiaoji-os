@@ -2,12 +2,8 @@ package handler
 
 import (
 	"fmt"
-	"io"
 	"net/http"
-	"time"
 
-	"novel-agent-os-backend/pkg/errors"
-	"novel-agent-os-backend/pkg/logger"
 	"novel-agent-os-backend/pkg/response"
 	"novel-agent-os-backend/pkg/sse"
 
@@ -15,96 +11,70 @@ import (
 	"github.com/google/uuid"
 )
 
+// SSEHandler SSE 流处理器
 type SSEHandler struct{}
 
 func NewSSEHandler() *SSEHandler {
 	return &SSEHandler{}
 }
 
+// Stream 建立 SSE 流连接
 func (h *SSEHandler) Stream(c *gin.Context) {
 	sessionID := c.Query("session_id")
 	if sessionID == "" {
-		response.Fail(c, errors.CodeInvalidParams, "session_id is required")
+		c.Status(http.StatusBadRequest)
 		return
 	}
 
-	clientID := uuid.New().String()
+	clientID := uuid.NewString()
 	hub := sse.GetHub()
 	client := hub.AddClient(clientID, sessionID)
+	defer hub.RemoveClient(sessionID, clientID)
 
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 
-	ctx := c.Request.Context()
-
-	go func() {
-		<-ctx.Done()
-		client.Close()
-	}()
-
-	c.Stream(func(w io.Writer) bool {
-		select {
-		case event := <-client.Channel:
-			_, err := fmt.Fprint(w, event.ToSSEFormat())
-			if err != nil {
-				logger.Error("Failed to write SSE event", logger.Err(err), logger.String("client_id", clientID))
-				return false
-			}
-			if flusher, ok := w.(http.Flusher); ok {
-				flusher.Flush()
-			}
-			return true
-		case <-ctx.Done():
-			return false
-		}
-	})
-}
-
-func (h *SSEHandler) BroadcastTestEvent(c *gin.Context) {
-	sessionID := c.Query("session_id")
-	if sessionID == "" {
-		response.Fail(c, errors.CodeInvalidParams, "session_id is required")
+	writer := c.Writer
+	flusher, ok := writer.(http.Flusher)
+	if !ok {
+		c.Status(http.StatusInternalServerError)
 		return
 	}
 
-	eventType := c.Query("type")
-	var event sse.Event
+	// 发送一条注释行，帮助客户端尽快进入 connected
+	_, _ = fmt.Fprint(writer, ": connected\n\n")
+	flusher.Flush()
 
-	switch eventType {
-	case "step":
-		event = sse.NewStepAppendedEvent(map[string]interface{}{
-			"step_id":   1,
-			"title":     "Test Step",
-			"content":   "This is a test step content",
-			"timestamp": time.Now(),
-		})
-	case "quality":
-		event = sse.NewQualityCheckedEvent(map[string]interface{}{
-			"step_id":   1,
-			"passed":    true,
-			"score":     95,
-			"issues":    []string{},
-			"timestamp": time.Now(),
-		})
-	case "export":
-		event = sse.NewExportReadyEvent(map[string]interface{}{
-			"export_id": "export-123",
-			"format":    "pdf",
-			"file_url":  "/exports/export-123.pdf",
-			"timestamp": time.Now(),
-		})
-	default:
-		event = sse.NewErrorEvent("Unknown event type", nil)
+	for {
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case evt, ok := <-client.Channel:
+			if !ok {
+				return
+			}
+			_, _ = fmt.Fprint(writer, evt.ToSSEFormat())
+			flusher.Flush()
+		}
+	}
+}
+
+// BroadcastTestEvent 测试广播事件
+func (h *SSEHandler) BroadcastTestEvent(c *gin.Context) {
+	sessionID := c.Query("session_id")
+	if sessionID == "" {
+		response.SuccessWithData(c, gin.H{"ok": true})
+		return
 	}
 
 	hub := sse.GetHub()
-	hub.BroadcastToSession(sessionID, event)
-
-	response.SuccessWithData(c, gin.H{
-		"message":    "Event broadcasted",
-		"session_id": sessionID,
-		"event_type": event.Type,
-	})
+	hub.BroadcastToSession(sessionID, sse.NewStepAppendedEvent(gin.H{
+		"step_id":   0,
+		"title":     "test",
+		"content":   "test event",
+		"timestamp": "",
+	}))
+	response.SuccessWithData(c, gin.H{"ok": true})
 }

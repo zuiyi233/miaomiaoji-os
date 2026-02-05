@@ -1,13 +1,17 @@
 package handler
 
 import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+
 	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/service"
 	"novel-agent-os-backend/pkg/errors"
 	"novel-agent-os-backend/pkg/response"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/datatypes"
 )
 
 type PluginHandler struct {
@@ -47,6 +51,8 @@ type CreateCapabilityRequest struct {
 	Type        string `json:"type" binding:"required"`
 	Description string `json:"description"`
 	Icon        string `json:"icon"`
+	InputSchema  map[string]interface{} `json:"input_schema"`
+	OutputSchema map[string]interface{} `json:"output_schema"`
 }
 
 func (h *PluginHandler) CreatePlugin(c *gin.Context) {
@@ -247,6 +253,16 @@ func (h *PluginHandler) AddCapability(c *gin.Context) {
 		Description: req.Description,
 		Icon:        req.Icon,
 	}
+	if req.InputSchema != nil {
+		if raw, err := json.Marshal(req.InputSchema); err == nil {
+			capability.InputSchema = datatypes.JSON(raw)
+		}
+	}
+	if req.OutputSchema != nil {
+		if raw, err := json.Marshal(req.OutputSchema); err == nil {
+			capability.OutputSchema = datatypes.JSON(raw)
+		}
+	}
 
 	if err := h.pluginService.AddCapability(capability); err != nil {
 		response.Fail(c, errors.CodeInternalError, "Failed to add capability")
@@ -353,5 +369,5 @@ func (h *PluginHandler) InvokePluginAsync(c *gin.Context) {
 	}
 
 	c.Header("Location", "/api/v1/jobs/"+job.JobUUID)
-	c.JSON(202, response.Response{Code: errors.CodeSuccess, Message: "success", Data: gin.H{"job_uuid": job.JobUUID, "status": job.Status}})
+	response.SuccessWithDataAndStatus(c, http.StatusAccepted, gin.H{"job_uuid": job.JobUUID, "status": job.Status})
 }

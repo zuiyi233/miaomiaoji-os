@@ -49,6 +49,10 @@ func (h *AIProxyStreamHandler) ProxyStream(c *gin.Context) {
 		response.Fail(c, errors.CodeNotFound, "provider not found")
 		return
 	}
+	if err := service.ValidateAIProxyTarget(req.Provider, providerCfg.BaseURL, req.Path); err != nil {
+		response.Fail(c, errors.CodeInvalidParams, err.Error())
+		return
+	}
 
 	base := strings.TrimRight(providerCfg.BaseURL, "/")
 	url := base + "/" + strings.TrimLeft(req.Path, "/")

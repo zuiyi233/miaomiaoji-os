@@ -5,7 +5,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { GripVertical, MoreHorizontal, Plus, BookOpen, Sparkles, X, Loader2, Calendar, LayoutGrid, Clock, ChevronRight, Target, Flag, Layers, Book, Edit3, Trash2, Anchor, Key, Route, Bookmark, Wand2, FileText, Save, Tag, Hash, FileType } from 'lucide-react';
 import { ViewMode, Document, Volume } from '../types';
-import { generateJSON, generateVolumeOutline } from '../services/aiService';
+import { buildWorkflowPayload, generateJSON, generateVolumeOutline } from '../services/aiService';
+import { runChapterBatchApi } from '../services/workflowApi';
+import { toSnapshotPayload, upsertProjectSnapshotApi } from '../services/projectApi';
 
 const PLOT_STRUCTURES = [
   { id: 'none', label: '自由构思', prompt: '自由发挥，不做结构限制。' },
@@ -18,12 +20,13 @@ const PLOT_STRUCTURES = [
 ];
 
 export const KanbanBoard: React.FC = () => {
-  const { project, setActiveDocumentId, setViewMode, addDocument, updateDocument, updateNovelDetails, addVolume, updateVolume, deleteVolume, deleteDocument } = useProject();
+  const { project, setActiveDocumentId, setViewMode, addDocument, updateDocument, updateNovelDetails, addVolume, updateVolume, deleteVolume, deleteDocument, selectSession } = useProject();
   const { hasAIAccess } = useAuth();
   const { confirm } = useConfirm();
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isOutlineModalOpen, setIsOutlineModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isBatchGenerating, setIsBatchGenerating] = useState(false);
   const [editingDoc, setEditingDoc] = useState<Partial<Document> | null>(null);
 
   const [aiPrompt, setAiPrompt] = useState('');
@@ -31,6 +34,27 @@ export const KanbanBoard: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   
   if (!project) return null;
+
+  const ensureProjectId = async (): Promise<number | null> => {
+    try {
+      const dto = await upsertProjectSnapshotApi(toSnapshotPayload(project, project.id));
+      return dto.id || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const buildOutlineFromDoc = (doc: Document): string => {
+    const lines: string[] = [];
+    if (doc.chapterGoal) lines.push(`章节目标：${doc.chapterGoal}`);
+    if (doc.corePlot) lines.push(`核心情节：${doc.corePlot}`);
+    if (doc.causeEffect) lines.push(`因果链：${doc.causeEffect}`);
+    if (doc.foreshadowingDetails) lines.push(`伏笔细节：${doc.foreshadowingDetails}`);
+    if (doc.hook) lines.push(`结尾钩子：${doc.hook}`);
+    if (lines.length > 0) return lines.join('\n');
+    if (doc.summary) return `摘要：${doc.summary}`;
+    return '请基于本卷目标与世界观设定，创作一章完整正文。';
+  };
 
   const [activeVolumeTab, setActiveVolumeTab] = useState<string>(project.volumes[0]?.id || '');
   const currentVolume = project.volumes.find(v => v.id === activeVolumeTab);
@@ -143,6 +167,97 @@ export const KanbanBoard: React.FC = () => {
       alert("生成失败，请重试");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleBatchGenerateContent = async () => {
+    if (!hasAIAccess || !project || !currentVolume) return;
+    const chapters = project.documents
+      .filter((d) => d.volumeId === activeVolumeTab)
+      .sort((a, b) => a.order - b.order);
+
+    const pendingDocs = chapters.filter((d) => !d.backendId && !d.content?.trim());
+    if (pendingDocs.length === 0) {
+      alert('没有可批量生成的章节（需要：正文为空且未绑定后端文档）。');
+      return;
+    }
+
+    const ok = await confirm({
+      title: '批量生成章节正文？',
+      description: `将对 ${pendingDocs.length} 个章节调用后端工作流生成正文，并写回后端 documents 表，同时同步到本地项目。`,
+      confirmText: '开始生成',
+      cancelText: '取消',
+      tone: 'default'
+    });
+    if (!ok) return;
+
+    setIsBatchGenerating(true);
+    try {
+      const projectId = await ensureProjectId();
+      if (!projectId) throw new Error('项目未同步到后端');
+
+      const systemInstruction = '你是一位职业小说作者。根据标题与大纲写出完整章节正文。只输出正文。';
+      const promptTemplate = `章节标题：{{title}}\n章节大纲：{{outline}}\n\n请写出完整章节正文。`;
+      const payload = buildWorkflowPayload(promptTemplate, systemInstruction, project.aiSettings);
+
+      const result = await runChapterBatchApi({
+        project_id: projectId,
+        // 本地 volumeId 是字符串，无法可靠映射后端 volume_id，这里暂不传。
+        items: pendingDocs.map((d) => ({
+          client_document_id: d.id,
+          title: d.title,
+          order_index: (typeof d.order === 'number' ? d.order : 0) + 1,
+          outline: buildOutlineFromDoc(d),
+        })),
+        provider: payload.provider,
+        path: payload.path,
+        body_template: payload.body,
+        write_back: { set_status: '草稿', set_summary: false },
+      });
+
+      // 同步到本地：使用 client_document_id 精确映射
+      const results = (result?.results || []) as Array<{ client_document_id: string; document: any }>;
+      if (results.length > 0) {
+        results.forEach((r) => {
+          const localId = r?.client_document_id;
+          const remote = r?.document;
+          if (!localId || !remote) return;
+
+          updateDocument(localId, {
+            backendId: Number(remote?.id) || undefined,
+            content: String(remote?.content || ''),
+            status: '草稿',
+          });
+        });
+      } else {
+        // 兼容旧后端：没有 results 时退回弱匹配
+        const docs = (result?.documents || []) as any[];
+        docs.forEach((remote) => {
+          const remoteTitle = String(remote?.title || '');
+          const remoteOrder = Number(remote?.order_index || 0);
+          const remoteContent = String(remote?.content || '');
+          const matched = pendingDocs.find((d) => d.title === remoteTitle && ((d.order ?? 0) + 1) === remoteOrder);
+
+          if (matched) {
+            updateDocument(matched.id, {
+              backendId: Number(remote?.id) || undefined,
+              content: remoteContent,
+              status: '草稿',
+            });
+            return;
+          }
+        });
+      }
+
+      if (result?.session?.id) {
+        selectSession(String(result.session.id));
+        setViewMode(ViewMode.WORKFLOW_DETAIL);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('批量生成失败，请稍后重试');
+    } finally {
+      setIsBatchGenerating(false);
     }
   };
 
@@ -290,15 +405,26 @@ export const KanbanBoard: React.FC = () => {
              />
              <span className="text-[10px] bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 px-2 py-1 rounded-md font-bold uppercase">分卷骨架</span>
           </div>
-          <div className="flex items-center gap-2">
-            {hasAIAccess && (
-              <button 
-                onClick={() => setIsOutlineModalOpen(true)}
-                className="px-3 py-1.5 bg-paper-50 dark:bg-zinc-800 text-brand-600 dark:text-brand-400 rounded-lg text-[10px] font-black uppercase hover:bg-brand-50 dark:hover:bg-zinc-700 transition-colors flex items-center gap-1 shadow-sm border border-brand-100 dark:border-zinc-700"
-              >
-                <Wand2 className="w-3 h-3" /> AI 自动规划卷纲
-              </button>
-            )}
+           <div className="flex items-center gap-2">
+             {hasAIAccess && (
+               <button 
+                 onClick={() => setIsOutlineModalOpen(true)}
+                 className="px-3 py-1.5 bg-paper-50 dark:bg-zinc-800 text-brand-600 dark:text-brand-400 rounded-lg text-[10px] font-black uppercase hover:bg-brand-50 dark:hover:bg-zinc-700 transition-colors flex items-center gap-1 shadow-sm border border-brand-100 dark:border-zinc-700"
+               >
+                 <Wand2 className="w-3 h-3" /> AI 自动规划卷纲
+               </button>
+             )}
+
+             {hasAIAccess && (
+               <button
+                 onClick={handleBatchGenerateContent}
+                 disabled={isBatchGenerating}
+                 className="px-3 py-1.5 bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg text-[10px] font-black uppercase hover:bg-black dark:hover:bg-white transition-colors flex items-center gap-1 shadow-sm border border-ink-900 dark:border-zinc-100 disabled:opacity-60"
+                 title="对当前卷中（正文为空且未绑定后端文档）的章节批量生成正文"
+               >
+                 {isBatchGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />} 批量生成正文
+               </button>
+             )}
             <button onClick={async () => { const ok = await confirm({ title: `确定删除卷“${currentVolume.title}”吗？`, description: '删除后将无法恢复。', confirmText: '删除', cancelText: '取消', tone: 'danger' }); if (ok) deleteVolume(currentVolume.id); }} className="p-2 text-ink-300 dark:text-zinc-600 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>

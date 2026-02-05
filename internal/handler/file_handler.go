@@ -11,13 +11,62 @@ import (
 )
 
 type FileHandler struct {
-	fileService service.FileService
+	fileService    service.FileService
+	projectService service.ProjectService
 }
 
-func NewFileHandler(fileService service.FileService) *FileHandler {
+func NewFileHandler(fileService service.FileService, projectService service.ProjectService) *FileHandler {
 	return &FileHandler{
-		fileService: fileService,
+		fileService:    fileService,
+		projectService: projectService,
 	}
+}
+
+func (h *FileHandler) ensureProjectOwner(c *gin.Context, projectID uint) bool {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "Unauthorized")
+		return false
+	}
+	project, err := h.projectService.GetByID(projectID)
+	if err != nil {
+		response.Fail(c, errors.CodeNotFound, "Project not found")
+		return false
+	}
+	if project.UserID != userID {
+		response.Fail(c, errors.CodeForbidden, "Access denied")
+		return false
+	}
+	return true
+}
+
+func (h *FileHandler) ensureFileOwner(c *gin.Context, fileID uint) (*model.File, bool) {
+	file, err := h.fileService.GetFile(fileID)
+	if err != nil {
+		response.Fail(c, errors.CodeFileNotFound, "File not found")
+		return nil, false
+	}
+
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "Unauthorized")
+		return nil, false
+	}
+
+	// 关联项目的文件，以项目 owner 权限为准
+	if file.ProjectID != nil {
+		if !h.ensureProjectOwner(c, *file.ProjectID) {
+			return nil, false
+		}
+		return file, true
+	}
+
+	// 非项目文件，保持按 userID 校验
+	if file.UserID != userID {
+		response.Fail(c, errors.CodeForbidden, "Access denied")
+		return nil, false
+	}
+	return file, true
 }
 
 type CreateFileRequest struct {
@@ -54,6 +103,11 @@ func (h *FileHandler) CreateFile(c *gin.Context) {
 		UserID:      userID,
 		ProjectID:   req.ProjectID,
 	}
+	if req.ProjectID != nil {
+		if !h.ensureProjectOwner(c, *req.ProjectID) {
+			return
+		}
+	}
 
 	if err := h.fileService.CreateFile(file, c.Request.Body); err != nil {
 		response.Fail(c, errors.CodeFileUploadFailed, "Failed to create file")
@@ -70,15 +124,8 @@ func (h *FileHandler) GetFile(c *gin.Context) {
 		return
 	}
 
-	file, err := h.fileService.GetFile(id)
-	if err != nil {
-		response.Fail(c, errors.CodeFileNotFound, "File not found")
-		return
-	}
-
-	userID := getUserIDFromContext(c)
-	if file.UserID != userID {
-		response.Fail(c, errors.CodeForbidden, "Access denied")
+	file, ok := h.ensureFileOwner(c, id)
+	if !ok {
 		return
 	}
 
@@ -98,15 +145,8 @@ func (h *FileHandler) UpdateFile(c *gin.Context) {
 		return
 	}
 
-	file, err := h.fileService.GetFile(id)
-	if err != nil {
-		response.Fail(c, errors.CodeFileNotFound, "File not found")
-		return
-	}
-
-	userID := getUserIDFromContext(c)
-	if file.UserID != userID {
-		response.Fail(c, errors.CodeForbidden, "Access denied")
+	file, ok := h.ensureFileOwner(c, id)
+	if !ok {
 		return
 	}
 
@@ -132,15 +172,7 @@ func (h *FileHandler) DeleteFile(c *gin.Context) {
 		return
 	}
 
-	file, err := h.fileService.GetFile(id)
-	if err != nil {
-		response.Fail(c, errors.CodeFileNotFound, "File not found")
-		return
-	}
-
-	userID := getUserIDFromContext(c)
-	if file.UserID != userID {
-		response.Fail(c, errors.CodeForbidden, "Access denied")
+	if _, ok := h.ensureFileOwner(c, id); !ok {
 		return
 	}
 
@@ -187,6 +219,9 @@ func (h *FileHandler) ListFilesByProject(c *gin.Context) {
 	projectID, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Fail(c, errors.CodeInvalidParams, "Invalid project ID")
+		return
+	}
+	if !h.ensureProjectOwner(c, projectID) {
 		return
 	}
 
@@ -238,15 +273,8 @@ func (h *FileHandler) DownloadFile(c *gin.Context) {
 		return
 	}
 
-	file, err := h.fileService.GetFile(id)
-	if err != nil {
-		response.Fail(c, errors.CodeFileNotFound, "File not found")
-		return
-	}
-
-	userID := getUserIDFromContext(c)
-	if file.UserID != userID {
-		response.Fail(c, errors.CodeForbidden, "Access denied")
+	file, ok := h.ensureFileOwner(c, id)
+	if !ok {
 		return
 	}
 

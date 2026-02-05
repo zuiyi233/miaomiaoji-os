@@ -31,6 +31,7 @@ func Setup() *gin.Engine {
 
 	// 初始化依赖
 	db := repository.GetDB()
+	appCfg := config.Get()
 
 	userRepo := repository.NewUserRepository()
 	userService := service.NewUserService(userRepo)
@@ -45,16 +46,16 @@ func Setup() *gin.Engine {
 	projectService := service.NewProjectService(projectRepo, volumeRepo, documentRepo, entityRepo, templateRepo)
 
 	volumeService := service.NewVolumeService(volumeRepo, projectRepo)
-	volumeHandler := handler.NewVolumeHandler(volumeService)
+	volumeHandler := handler.NewVolumeHandler(volumeService, projectService)
 
 	documentService := service.NewDocumentService(documentRepo, projectRepo, volumeRepo)
-	documentHandler := handler.NewDocumentHandler(documentService)
+	documentHandler := handler.NewDocumentHandler(documentService, projectService, volumeService)
 
 	entityService := service.NewEntityService(entityRepo, projectRepo)
-	entityHandler := handler.NewEntityHandler(entityService)
+	entityHandler := handler.NewEntityHandler(entityService, projectService)
 
 	templateService := service.NewTemplateService(templateRepo, projectRepo)
-	templateHandler := handler.NewTemplateHandler(templateService)
+	templateHandler := handler.NewTemplateHandler(templateService, projectService)
 
 	redemptionRepo := repository.NewRedemptionCodeRepository()
 	redemptionService := service.NewRedemptionCodeService(redemptionRepo)
@@ -75,13 +76,14 @@ func Setup() *gin.Engine {
 	sessionRepo := repository.NewSessionRepository(db)
 	sessionService := service.NewSessionService(sessionRepo)
 	sessionHandler := handler.NewSessionHandler(sessionService)
-	workflowService := service.NewWorkflowService(aiConfigService, sessionService, documentService)
-	workflowHandler := handler.NewWorkflowHandler(workflowService, sessionService, documentService)
 
 	// Job 依赖
 	jobRepo := repository.NewJobRepository(db)
 	jobService := service.NewJobService(jobRepo, sessionRepo, pluginService, sessionService)
 	jobHandler := handler.NewJobHandler(jobService)
+
+	workflowService := service.NewWorkflowService(aiConfigService, sessionService, documentService, pluginService, jobService)
+	workflowHandler := handler.NewWorkflowHandler(workflowService, sessionService, documentService, projectService, volumeService)
 
 	pluginHandler := handler.NewPluginHandler(pluginService, jobService)
 
@@ -97,7 +99,7 @@ func Setup() *gin.Engine {
 		logger.Error("初始化本地存储失败", logger.Err(err))
 	}
 	fileService := service.NewFileService(fileRepo, localStorage)
-	fileHandler := handler.NewFileHandler(fileService)
+	fileHandler := handler.NewFileHandler(fileService, projectService)
 
 	projectHandler := handler.NewProjectHandler(projectService, fileService)
 
@@ -107,8 +109,8 @@ func Setup() *gin.Engine {
 	corpusHandler := handler.NewCorpusHandler(corpusService)
 
 	// Formatting & Quality 依赖
-	formattingService := service.NewFormattingService(config.Config{})
-	qualityGateService := service.NewQualityGateService(config.Config{})
+	formattingService := service.NewFormattingService(*appCfg)
+	qualityGateService := service.NewQualityGateService(*appCfg)
 	formattingHandler := handler.NewFormattingHandler(formattingService)
 	qualityHandler := handler.NewQualityHandler(qualityGateService)
 
@@ -299,6 +301,13 @@ func Setup() *gin.Engine {
 		{
 			workflows.POST("/world", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunWorld)
 			workflows.POST("/polish", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunPolish)
+
+			wizard := workflows.Group("/wizard")
+			{
+				wizard.POST("/world", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunWizardWorld)
+				wizard.POST("/characters", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunWizardCharacters)
+				wizard.POST("/outline", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunWizardOutline)
+			}
 
 			chapters := workflows.Group("/chapters")
 			{

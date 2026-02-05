@@ -4,9 +4,10 @@ import { useProject } from '../contexts/ProjectContext';
 import { useAuth } from '../contexts/AuthContext';
 import { generateStoryContent, generateTimeSuggestions } from '../services/geminiService';
 import { buildWorkflowPayload, generateText } from '../services/aiService';
-import { runPolishWorkflowApi } from '../services/workflowApi';
+import { runChapterAnalyzeApi, runChapterGenerateApi, runChapterRewriteApi, runPolishWorkflowApi } from '../services/workflowApi';
 import { toSnapshotPayload, upsertProjectSnapshotApi } from '../services/projectApi';
 import { callPluginAction, executePluginActions } from '../services/pluginService';
+import { createDocumentApi } from '../services/documentApi';
 import { AgentWriter } from './AgentWriter';
 import { 
   Loader2, Maximize2, Sparkles, Bookmark as BookmarkIcon, Plus, X, Trash2, 
@@ -21,6 +22,8 @@ export const Editor: React.FC = () => {
   const [content, setContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPolishing, setIsPolishing] = useState(false);
+  const [isChapterGenerating, setIsChapterGenerating] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPluginRunning, setIsPluginRunning] = useState<string | null>(null);
   const [pluginError, setPluginError] = useState<string | null>(null);
   const [showBookmarks, setShowBookmarks] = useState(false);
@@ -92,6 +95,29 @@ export const Editor: React.FC = () => {
     }
   };
 
+  const ensureBackendDocumentId = async (projectId: number): Promise<number | null> => {
+    if (!activeDoc) return null;
+    if (typeof activeDoc.backendId === 'number' && activeDoc.backendId > 0) return activeDoc.backendId;
+
+    // 后端文档表是独立的：这里做一次懒创建，拿到 document_id 供章节工作流写回。
+    try {
+      const created = await createDocumentApi(projectId, {
+        title: activeDoc.title || '未命名章节',
+        content: content || '',
+        summary: activeDoc.summary || '',
+        status: activeDoc.status || '草稿',
+        order_index: (typeof activeDoc.order === 'number' ? activeDoc.order : 0) + 1,
+      });
+      if (created?.id) {
+        updateDocument(activeDoc.id, { backendId: created.id });
+        return created.id;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const handlePolishChapter = async () => {
     if (!activeDoc || !project || !hasAIAccess) return;
     if (!content.trim()) return;
@@ -104,14 +130,19 @@ export const Editor: React.FC = () => {
       try {
         const projectId = await ensureProjectId();
         if (!projectId) throw new Error('项目未同步到后端');
+
+        const backendDocumentId = await ensureBackendDocumentId(projectId);
+        if (!backendDocumentId) throw new Error('文档未同步到后端');
+
         const payload = buildWorkflowPayload(prompt, systemInstruction, project.aiSettings);
-        const result = await runPolishWorkflowApi({
+        const result = await runChapterRewriteApi({
           project_id: projectId,
-          title: `章节润色 · ${activeDoc.title}`,
-          step_title: '润色输出',
+          document_id: backendDocumentId,
+          rewrite_mode: 'polish',
           provider: payload.provider,
           path: payload.path,
           body: payload.body,
+          write_back: { set_status: '修改中' },
         });
         polished = result.content || '';
         if (result.session?.id) {
@@ -119,7 +150,27 @@ export const Editor: React.FC = () => {
           setViewMode(ViewMode.WORKFLOW_DETAIL);
         }
       } catch {
-        polished = await generateText(prompt, systemInstruction, project.aiSettings);
+        // 兜底：先走旧的工作流接口（不依赖后端文档表）；再兜底直连
+        try {
+          const projectId = await ensureProjectId();
+          if (!projectId) throw new Error('项目未同步到后端');
+          const payload = buildWorkflowPayload(prompt, systemInstruction, project.aiSettings);
+          const result = await runPolishWorkflowApi({
+            project_id: projectId,
+            title: `章节润色 · ${activeDoc.title}`,
+            step_title: '润色输出',
+            provider: payload.provider,
+            path: payload.path,
+            body: payload.body,
+          });
+          polished = result.content || '';
+          if (result.session?.id) {
+            selectSession(String(result.session.id));
+            setViewMode(ViewMode.WORKFLOW_DETAIL);
+          }
+        } catch {
+          polished = await generateText(prompt, systemInstruction, project.aiSettings);
+        }
       }
 
       if (polished.trim()) {
@@ -128,6 +179,81 @@ export const Editor: React.FC = () => {
       }
     } finally {
       setIsPolishing(false);
+    }
+  };
+
+  const handleGenerateChapter = async () => {
+    if (!activeDoc || !project || !hasAIAccess) return;
+    setIsChapterGenerating(true);
+    try {
+      const projectId = await ensureProjectId();
+      if (!projectId) return;
+      const backendDocumentId = await ensureBackendDocumentId(projectId);
+      if (!backendDocumentId) return;
+
+      const systemInstruction = '你是一位职业小说作者。根据给定的章节目标、核心情节与钩子，写出完整章节正文。只输出正文。';
+      const prompt = `章节标题：${activeDoc.title}\n章节目标：${activeDoc.chapterGoal || '无'}\n核心情节：${activeDoc.corePlot || '无'}\n因果链：${activeDoc.causeEffect || '无'}\n细节伏笔：${activeDoc.foreshadowingDetails || '无'}\n结尾钩子：${activeDoc.hook || '无'}\n\n请写出本章正文。`;
+      const payload = buildWorkflowPayload(prompt, systemInstruction, project.aiSettings);
+
+      const result = await runChapterGenerateApi({
+        project_id: projectId,
+        document_id: backendDocumentId,
+        title: activeDoc.title,
+        provider: payload.provider,
+        path: payload.path,
+        body: payload.body,
+        write_back: { set_status: '草稿' },
+      });
+
+      const text = (result?.content || '').trim();
+      if (text) {
+        setContent(text);
+        updateDocument(activeDoc.id, { content: text });
+      }
+
+      if (result.session?.id) {
+        selectSession(String(result.session.id));
+        setViewMode(ViewMode.WORKFLOW_DETAIL);
+      }
+    } finally {
+      setIsChapterGenerating(false);
+    }
+  };
+
+  const handleAnalyzeChapter = async () => {
+    if (!activeDoc || !project || !hasAIAccess) return;
+    if (!content.trim()) return;
+    setIsAnalyzing(true);
+    try {
+      const systemInstruction = '你是一位文学编辑与剧情分析师。请输出一段结构化摘要（不超过300字），并列出3-8条关键剧情点。仅输出摘要与要点。';
+      const prompt = `请分析并总结以下章节内容：\n\n${content}`;
+
+      const projectId = await ensureProjectId();
+      if (!projectId) return;
+      const backendDocumentId = await ensureBackendDocumentId(projectId);
+      if (!backendDocumentId) return;
+
+      const payload = buildWorkflowPayload(prompt, systemInstruction, project.aiSettings);
+      const result = await runChapterAnalyzeApi({
+        project_id: projectId,
+        document_id: backendDocumentId,
+        provider: payload.provider,
+        path: payload.path,
+        body: payload.body,
+        write_back: { set_summary: true },
+      });
+
+      const summary = (result?.document as any)?.summary || result?.content || '';
+      if (typeof summary === 'string' && summary.trim()) {
+        updateDocument(activeDoc.id, { summary: summary.trim() });
+      }
+
+      if (result.session?.id) {
+        selectSession(String(result.session.id));
+        setViewMode(ViewMode.WORKFLOW_DETAIL);
+      }
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -286,6 +412,28 @@ export const Editor: React.FC = () => {
                 title="章节润色"
               >
                 {isPolishing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />} 润色
+              </button>
+            )}
+
+            {hasAIAccess && (
+              <button
+                onClick={handleGenerateChapter}
+                disabled={isChapterGenerating}
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-black dark:hover:bg-white transition-all shadow-lg disabled:opacity-60"
+                title="章节生成"
+              >
+                {isChapterGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} 生成
+              </button>
+            )}
+
+            {hasAIAccess && (
+              <button
+                onClick={handleAnalyzeChapter}
+                disabled={isAnalyzing}
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-brand-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-brand-500 transition-all shadow-lg disabled:opacity-60"
+                title="章节分析"
+              >
+                {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldAlert className="w-3 h-3" />} 分析
               </button>
             )}
             <div className="hidden md:flex items-center gap-2 text-[10px] font-semibold text-ink-400 dark:text-zinc-400 bg-paper-100 dark:bg-zinc-800 px-3 py-1 rounded-full border border-paper-200 dark:border-zinc-700 shrink-0">
@@ -498,6 +646,22 @@ export const Editor: React.FC = () => {
                           className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg disabled:opacity-60"
                         >
                           {isPolishing ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />} 润色
+                        </button>
+
+                        <button
+                          onClick={handleGenerateChapter}
+                          disabled={isChapterGenerating}
+                          className="flex items-center gap-1.5 px-3 py-1 bg-ink-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-black dark:hover:bg-white transition-all shadow-lg disabled:opacity-60"
+                        >
+                          {isChapterGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} 生成
+                        </button>
+
+                        <button
+                          onClick={handleAnalyzeChapter}
+                          disabled={isAnalyzing}
+                          className="flex items-center gap-1.5 px-3 py-1 bg-brand-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-brand-500 transition-all shadow-lg disabled:opacity-60"
+                        >
+                          {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldAlert className="w-3 h-3" />} 分析
                         </button>
                         <button 
                           onClick={() => setShowAgentWriter(true)} 

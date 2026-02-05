@@ -3,6 +3,7 @@ package handler
 import (
 	"strconv"
 
+	"novel-agent-os-backend/internal/model"
 	"novel-agent-os-backend/internal/service"
 	"novel-agent-os-backend/pkg/errors"
 	"novel-agent-os-backend/pkg/logger"
@@ -14,13 +15,67 @@ import (
 // TemplateHandler 模板处理器
 type TemplateHandler struct {
 	templateService service.TemplateService
+	projectService  service.ProjectService
 }
 
 // NewTemplateHandler 创建模板处理器
-func NewTemplateHandler(templateService service.TemplateService) *TemplateHandler {
+func NewTemplateHandler(templateService service.TemplateService, projectService service.ProjectService) *TemplateHandler {
 	return &TemplateHandler{
 		templateService: templateService,
+		projectService:  projectService,
 	}
+}
+
+func (h *TemplateHandler) ensureProjectOwner(c *gin.Context, projectID uint) bool {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Error(c, errors.ErrUnauthorized)
+		return false
+	}
+	project, err := h.projectService.GetByID(projectID)
+	if err != nil {
+		response.Error(c, errors.ErrProjectNotFound)
+		return false
+	}
+	if project.UserID != userID {
+		response.Error(c, errors.ErrForbidden)
+		return false
+	}
+	return true
+}
+
+func (h *TemplateHandler) ensureTemplateOwner(c *gin.Context, templateID uint, write bool) (*model.Template, bool) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Error(c, errors.ErrUnauthorized)
+		return nil, false
+	}
+
+	tmpl, err := h.templateService.GetByID(templateID)
+	if err != nil {
+		response.Error(c, err)
+		return nil, false
+	}
+
+	// 系统模板（ProjectID=0）：允许读，不允许改/删
+	if tmpl.ProjectID == 0 {
+		if write {
+			response.Error(c, errors.ErrForbidden)
+			return nil, false
+		}
+		return tmpl, true
+	}
+
+	project, err := h.projectService.GetByID(tmpl.ProjectID)
+	if err != nil {
+		response.Error(c, errors.ErrProjectNotFound)
+		return nil, false
+	}
+	if project.UserID != userID {
+		response.Error(c, errors.ErrForbidden)
+		return nil, false
+	}
+	return tmpl, true
 }
 
 // CreateTemplateRequest 创建模板请求
@@ -44,6 +99,9 @@ func (h *TemplateHandler) Create(c *gin.Context) {
 	projectID, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if !h.ensureProjectOwner(c, projectID) {
 		return
 	}
 
@@ -74,6 +132,9 @@ func (h *TemplateHandler) ListByProject(c *gin.Context) {
 	projectID, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if !h.ensureProjectOwner(c, projectID) {
 		return
 	}
 
@@ -124,10 +185,8 @@ func (h *TemplateHandler) GetByID(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
-
-	template, err := h.templateService.GetByID(id)
-	if err != nil {
-		response.Error(c, err)
+	template, ok := h.ensureTemplateOwner(c, id, false)
+	if !ok {
 		return
 	}
 
@@ -139,6 +198,9 @@ func (h *TemplateHandler) Update(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if _, ok := h.ensureTemplateOwner(c, id, true); !ok {
 		return
 	}
 
@@ -177,6 +239,9 @@ func (h *TemplateHandler) Delete(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if _, ok := h.ensureTemplateOwner(c, id, true); !ok {
 		return
 	}
 

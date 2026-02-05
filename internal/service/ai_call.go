@@ -22,6 +22,9 @@ func callAI(aiConfigService AIConfigService, provider, path, body string) (json.
 	if err != nil {
 		return nil, "", fmt.Errorf("provider not found")
 	}
+	if err := ValidateAIProxyTarget(provider, providerCfg.BaseURL, path); err != nil {
+		return nil, "", err
+	}
 
 	base := strings.TrimRight(providerCfg.BaseURL, "/")
 	url := base + "/" + strings.TrimLeft(path, "/")

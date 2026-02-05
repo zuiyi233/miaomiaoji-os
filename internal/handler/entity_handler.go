@@ -14,14 +14,73 @@ import (
 
 // EntityHandler 实体处理器
 type EntityHandler struct {
-	entityService service.EntityService
+	entityService  service.EntityService
+	projectService service.ProjectService
 }
 
 // NewEntityHandler 创建实体处理器
-func NewEntityHandler(entityService service.EntityService) *EntityHandler {
+func NewEntityHandler(entityService service.EntityService, projectService service.ProjectService) *EntityHandler {
 	return &EntityHandler{
-		entityService: entityService,
+		entityService:  entityService,
+		projectService: projectService,
 	}
+}
+
+func (h *EntityHandler) ensureProjectOwner(c *gin.Context, projectID uint) bool {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Error(c, errors.ErrUnauthorized)
+		return false
+	}
+	project, err := h.projectService.GetByID(projectID)
+	if err != nil {
+		response.Error(c, errors.ErrProjectNotFound)
+		return false
+	}
+	if project.UserID != userID {
+		response.Error(c, errors.ErrForbidden)
+		return false
+	}
+	return true
+}
+
+func (h *EntityHandler) ensureEntityOwner(c *gin.Context, entityID uint) (*model.Entity, bool) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Error(c, errors.ErrUnauthorized)
+		return nil, false
+	}
+	entity, err := h.entityService.GetByID(entityID)
+	if err != nil {
+		response.Error(c, err)
+		return nil, false
+	}
+	project, err := h.projectService.GetByID(entity.ProjectID)
+	if err != nil {
+		response.Error(c, errors.ErrProjectNotFound)
+		return nil, false
+	}
+	if project.UserID != userID {
+		response.Error(c, errors.ErrForbidden)
+		return nil, false
+	}
+	return entity, true
+}
+
+func (h *EntityHandler) ensureEntityLinkOwner(c *gin.Context, sourceID, targetID uint) bool {
+	source, ok := h.ensureEntityOwner(c, sourceID)
+	if !ok {
+		return false
+	}
+	target, ok := h.ensureEntityOwner(c, targetID)
+	if !ok {
+		return false
+	}
+	if source.ProjectID != target.ProjectID {
+		response.Error(c, errors.ErrForbidden)
+		return false
+	}
+	return true
 }
 
 // CreateEntityRequest 创建实体请求
@@ -65,6 +124,9 @@ func (h *EntityHandler) Create(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
+	if !h.ensureProjectOwner(c, projectID) {
+		return
+	}
 
 	var req CreateEntityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -101,6 +163,9 @@ func (h *EntityHandler) List(c *gin.Context) {
 	projectID, err := parseUintParam(c, "project_id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if !h.ensureProjectOwner(c, projectID) {
 		return
 	}
 
@@ -145,10 +210,8 @@ func (h *EntityHandler) GetByID(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
-
-	entity, err := h.entityService.GetByID(id)
-	if err != nil {
-		response.Error(c, err)
+	entity, ok := h.ensureEntityOwner(c, id)
+	if !ok {
 		return
 	}
 
@@ -160,6 +223,9 @@ func (h *EntityHandler) Update(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if _, ok := h.ensureEntityOwner(c, id); !ok {
 		return
 	}
 
@@ -209,6 +275,9 @@ func (h *EntityHandler) Delete(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
+	if _, ok := h.ensureEntityOwner(c, id); !ok {
+		return
+	}
 
 	if err := h.entityService.Delete(id); err != nil {
 		response.Error(c, err)
@@ -223,6 +292,9 @@ func (h *EntityHandler) AddTag(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if _, ok := h.ensureEntityOwner(c, id); !ok {
 		return
 	}
 
@@ -246,6 +318,9 @@ func (h *EntityHandler) RemoveTag(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if _, ok := h.ensureEntityOwner(c, id); !ok {
 		return
 	}
 
@@ -277,6 +352,9 @@ func (h *EntityHandler) CreateLink(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
+	if !h.ensureEntityLinkOwner(c, id, req.TargetID) {
+		return
+	}
 
 	if err := h.entityService.CreateLink(id, req.TargetID, req.Type, req.RelationName); err != nil {
 		response.Error(c, err)
@@ -297,6 +375,9 @@ func (h *EntityHandler) DeleteLink(c *gin.Context) {
 	targetID, err := parseUintParam(c, "target_id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if !h.ensureEntityLinkOwner(c, id, targetID) {
 		return
 	}
 

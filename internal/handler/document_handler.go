@@ -13,13 +13,88 @@ import (
 // DocumentHandler 文档处理器
 type DocumentHandler struct {
 	documentService service.DocumentService
+	projectService  service.ProjectService
+	volumeService   service.VolumeService
 }
 
 // NewDocumentHandler 创建文档处理器
-func NewDocumentHandler(documentService service.DocumentService) *DocumentHandler {
+func NewDocumentHandler(documentService service.DocumentService, projectService service.ProjectService, volumeService service.VolumeService) *DocumentHandler {
 	return &DocumentHandler{
 		documentService: documentService,
+		projectService:  projectService,
+		volumeService:   volumeService,
 	}
+}
+
+func (h *DocumentHandler) ensureProjectOwner(c *gin.Context, projectID uint) bool {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Error(c, errors.ErrUnauthorized)
+		return false
+	}
+	project, err := h.projectService.GetByID(projectID)
+	if err != nil {
+		response.Error(c, errors.ErrProjectNotFound)
+		return false
+	}
+	if project.UserID != userID {
+		response.Error(c, errors.ErrForbidden)
+		return false
+	}
+	return true
+}
+
+func (h *DocumentHandler) ensureDocumentOwner(c *gin.Context, documentID uint) (*serviceSafeDocument, bool) {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Error(c, errors.ErrUnauthorized)
+		return nil, false
+	}
+	document, err := h.documentService.GetByID(documentID)
+	if err != nil {
+		response.Error(c, err)
+		return nil, false
+	}
+	project, err := h.projectService.GetByID(document.ProjectID)
+	if err != nil {
+		response.Error(c, errors.ErrProjectNotFound)
+		return nil, false
+	}
+	if project.UserID != userID {
+		response.Error(c, errors.ErrForbidden)
+		return nil, false
+	}
+	return &serviceSafeDocument{DocumentID: document.ID, ProjectID: document.ProjectID, VolumeID: document.VolumeID}, true
+}
+
+func (h *DocumentHandler) ensureVolumeOwner(c *gin.Context, volumeID uint) bool {
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Error(c, errors.ErrUnauthorized)
+		return false
+	}
+	volume, err := h.volumeService.GetByID(volumeID)
+	if err != nil {
+		response.Error(c, err)
+		return false
+	}
+	project, err := h.projectService.GetByID(volume.ProjectID)
+	if err != nil {
+		response.Error(c, errors.ErrProjectNotFound)
+		return false
+	}
+	if project.UserID != userID {
+		response.Error(c, errors.ErrForbidden)
+		return false
+	}
+	return true
+}
+
+// serviceSafeDocument 避免 handler 直接依赖 model
+type serviceSafeDocument struct {
+	DocumentID uint
+	ProjectID  uint
+	VolumeID   uint
 }
 
 // CreateDocumentRequest 创建文档请求
@@ -79,6 +154,9 @@ func (h *DocumentHandler) Create(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
+	if !h.ensureProjectOwner(c, projectID) {
+		return
+	}
 
 	var req CreateDocumentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -124,6 +202,9 @@ func (h *DocumentHandler) ListByProject(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
+	if !h.ensureProjectOwner(c, projectID) {
+		return
+	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
@@ -149,6 +230,9 @@ func (h *DocumentHandler) ListByVolume(c *gin.Context) {
 	volumeID, err := parseUintParam(c, "volume_id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if !h.ensureVolumeOwner(c, volumeID) {
 		return
 	}
 
@@ -178,13 +262,14 @@ func (h *DocumentHandler) GetByID(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
-
+	if _, ok := h.ensureDocumentOwner(c, id); !ok {
+		return
+	}
 	document, err := h.documentService.GetByID(id)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
-
 	response.SuccessWithData(c, document)
 }
 
@@ -193,6 +278,9 @@ func (h *DocumentHandler) Update(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if _, ok := h.ensureDocumentOwner(c, id); !ok {
 		return
 	}
 
@@ -263,6 +351,9 @@ func (h *DocumentHandler) Delete(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
+	if _, ok := h.ensureDocumentOwner(c, id); !ok {
+		return
+	}
 
 	if err := h.documentService.Delete(id); err != nil {
 		response.Error(c, err)
@@ -277,6 +368,9 @@ func (h *DocumentHandler) AddBookmark(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if _, ok := h.ensureDocumentOwner(c, id); !ok {
 		return
 	}
 
@@ -302,6 +396,9 @@ func (h *DocumentHandler) RemoveBookmark(c *gin.Context) {
 		response.Error(c, errors.ErrInvalidParams)
 		return
 	}
+	if _, ok := h.ensureDocumentOwner(c, id); !ok {
+		return
+	}
 
 	index, err := strconv.Atoi(c.Param("index"))
 	if err != nil {
@@ -322,6 +419,9 @@ func (h *DocumentHandler) LinkEntity(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if _, ok := h.ensureDocumentOwner(c, id); !ok {
 		return
 	}
 
@@ -350,6 +450,9 @@ func (h *DocumentHandler) UnlinkEntity(c *gin.Context) {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		response.Error(c, errors.ErrInvalidParams)
+		return
+	}
+	if _, ok := h.ensureDocumentOwner(c, id); !ok {
 		return
 	}
 

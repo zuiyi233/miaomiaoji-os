@@ -438,7 +438,7 @@ func (h *ProjectHandler) Export(c *gin.Context) {
 	}
 
 	// 生成JSON导出
-	c.JSON(200, export)
+	response.SuccessWithData(c, export)
 }
 
 // toProjectResponse 转换为项目响应
