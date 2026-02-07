@@ -247,6 +247,20 @@ func (s *jobService) worker() {
 		}
 		_ = s.sessionSvc.CreateStepAutoOrder(step)
 
+		// 如果是 Function Calling 工具调用，创建 tool_result 步骤
+		if job.Type == model.JobTypePluginInvoke {
+			var resultMap map[string]interface{}
+			json.Unmarshal(resultJSON, &resultMap)
+
+			// 使用 job_uuid 作为 tool_call_id 的关联
+			metadata := map[string]interface{}{
+				"job_uuid":  job.JobUUID,
+				"plugin_id": job.PluginID,
+				"method":    job.Method,
+			}
+			_ = s.sessionSvc.CreateToolResultStep(job.SessionID, job.JobUUID, resultMap, metadata)
+		}
+
 		s.broadcastJobEvent(job.SessionID, sse.EventTypeStepAppended, map[string]interface{}{
 			"step_id":   step.ID,
 			"title":     step.Title,

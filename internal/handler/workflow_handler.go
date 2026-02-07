@@ -13,20 +13,22 @@ import (
 
 // WorkflowHandler 工作流执行处理器
 type WorkflowHandler struct {
-	workflowService service.WorkflowService
-	sessionService  service.SessionService
-	documentService service.DocumentService
-	projectService  service.ProjectService
-	volumeService   service.VolumeService
+	workflowService       service.WorkflowService
+	workflowStreamService *service.WorkflowStreamService
+	sessionService        service.SessionService
+	documentService       service.DocumentService
+	projectService        service.ProjectService
+	volumeService         service.VolumeService
 }
 
-func NewWorkflowHandler(workflowService service.WorkflowService, sessionService service.SessionService, documentService service.DocumentService, projectService service.ProjectService, volumeService service.VolumeService) *WorkflowHandler {
+func NewWorkflowHandler(workflowService service.WorkflowService, workflowStreamService *service.WorkflowStreamService, sessionService service.SessionService, documentService service.DocumentService, projectService service.ProjectService, volumeService service.VolumeService) *WorkflowHandler {
 	return &WorkflowHandler{
-		workflowService: workflowService,
-		sessionService:  sessionService,
-		documentService: documentService,
-		projectService:  projectService,
-		volumeService:   volumeService,
+		workflowService:       workflowService,
+		workflowStreamService: workflowStreamService,
+		sessionService:        sessionService,
+		documentService:       documentService,
+		projectService:        projectService,
+		volumeService:         volumeService,
 	}
 }
 
@@ -93,55 +95,55 @@ type ChapterWriteBack struct {
 }
 
 type ChapterGenerateRequest struct {
-	ProjectID  uint            `json:"project_id" binding:"required"`
-	SessionID  uint            `json:"session_id"`
-	DocumentID uint            `json:"document_id"`
-	VolumeID   uint            `json:"volume_id"`
-	Title      string          `json:"title"`
-	OrderIndex int             `json:"order_index"`
-	Provider   string          `json:"provider" binding:"required"`
-	Path       string          `json:"path" binding:"required"`
-	Body       string          `json:"body" binding:"required"`
+	ProjectID  uint             `json:"project_id" binding:"required"`
+	SessionID  uint             `json:"session_id"`
+	DocumentID uint             `json:"document_id"`
+	VolumeID   uint             `json:"volume_id"`
+	Title      string           `json:"title"`
+	OrderIndex int              `json:"order_index"`
+	Provider   string           `json:"provider" binding:"required"`
+	Path       string           `json:"path" binding:"required"`
+	Body       string           `json:"body" binding:"required"`
 	WriteBack  ChapterWriteBack `json:"write_back"`
 }
 
 type ChapterAnalyzeRequest struct {
-	ProjectID  uint            `json:"project_id" binding:"required"`
-	SessionID  uint            `json:"session_id"`
-	DocumentID uint            `json:"document_id" binding:"required"`
-	Provider   string          `json:"provider" binding:"required"`
-	Path       string          `json:"path" binding:"required"`
-	Body       string          `json:"body" binding:"required"`
+	ProjectID  uint             `json:"project_id" binding:"required"`
+	SessionID  uint             `json:"session_id"`
+	DocumentID uint             `json:"document_id" binding:"required"`
+	Provider   string           `json:"provider" binding:"required"`
+	Path       string           `json:"path" binding:"required"`
+	Body       string           `json:"body" binding:"required"`
 	WriteBack  ChapterWriteBack `json:"write_back"`
 }
 
 type ChapterRewriteRequest struct {
-	ProjectID   uint            `json:"project_id" binding:"required"`
-	SessionID   uint            `json:"session_id"`
-	DocumentID  uint            `json:"document_id" binding:"required"`
-	RewriteMode string          `json:"rewrite_mode"`
-	Provider    string          `json:"provider" binding:"required"`
-	Path        string          `json:"path" binding:"required"`
-	Body        string          `json:"body" binding:"required"`
+	ProjectID   uint             `json:"project_id" binding:"required"`
+	SessionID   uint             `json:"session_id"`
+	DocumentID  uint             `json:"document_id" binding:"required"`
+	RewriteMode string           `json:"rewrite_mode"`
+	Provider    string           `json:"provider" binding:"required"`
+	Path        string           `json:"path" binding:"required"`
+	Body        string           `json:"body" binding:"required"`
 	WriteBack   ChapterWriteBack `json:"write_back"`
 }
 
 type ChapterBatchItem struct {
 	ClientDocumentID string `json:"client_document_id"`
-	Title      string `json:"title"`
-	OrderIndex int    `json:"order_index"`
-	Outline    string `json:"outline"`
+	Title            string `json:"title"`
+	OrderIndex       int    `json:"order_index"`
+	Outline          string `json:"outline"`
 }
 
 type ChapterBatchRequest struct {
-	ProjectID    uint             `json:"project_id" binding:"required"`
-	SessionID    uint             `json:"session_id"`
-	VolumeID     uint             `json:"volume_id"`
+	ProjectID    uint               `json:"project_id" binding:"required"`
+	SessionID    uint               `json:"session_id"`
+	VolumeID     uint               `json:"volume_id"`
 	Items        []ChapterBatchItem `json:"items" binding:"required"`
-	Provider     string           `json:"provider" binding:"required"`
-	Path         string           `json:"path" binding:"required"`
-	BodyTemplate string           `json:"body_template" binding:"required"`
-	WriteBack    ChapterWriteBack  `json:"write_back"`
+	Provider     string             `json:"provider" binding:"required"`
+	Path         string             `json:"path" binding:"required"`
+	BodyTemplate string             `json:"body_template" binding:"required"`
+	WriteBack    ChapterWriteBack   `json:"write_back"`
 }
 
 func (h *WorkflowHandler) RunWorld(c *gin.Context) {
@@ -209,17 +211,17 @@ func (h *WorkflowHandler) RunChapterGenerate(c *gin.Context) {
 	}
 
 	result, err := h.workflowService.RunChapterGenerate(service.ChapterGenerateRequest{
-		UserID:       userID,
-		ProjectID:    req.ProjectID,
-		Session:      sess,
-		SessionTitle: title,
-		DocumentID:   req.DocumentID,
-		VolumeID:     req.VolumeID,
-		Title:        req.Title,
-		OrderIndex:   req.OrderIndex,
-		Provider:     req.Provider,
-		Path:         req.Path,
-		Body:         req.Body,
+		UserID:              userID,
+		ProjectID:           req.ProjectID,
+		Session:             sess,
+		SessionTitle:        title,
+		DocumentID:          req.DocumentID,
+		VolumeID:            req.VolumeID,
+		Title:               req.Title,
+		OrderIndex:          req.OrderIndex,
+		Provider:            req.Provider,
+		Path:                req.Path,
+		Body:                req.Body,
 		AuthorizationHeader: c.GetHeader("Authorization"),
 		WriteBack: service.ChapterWriteBack{
 			Mode:       req.WriteBack.Mode,
@@ -276,14 +278,14 @@ func (h *WorkflowHandler) RunChapterAnalyze(c *gin.Context) {
 
 	title := "章节分析 " + time.Now().Format("2006-01-02 15:04")
 	result, err := h.workflowService.RunChapterAnalyze(service.ChapterAnalyzeRequest{
-		UserID:       userID,
-		ProjectID:    req.ProjectID,
-		Session:      sess,
-		SessionTitle: title,
-		DocumentID:   req.DocumentID,
-		Provider:     req.Provider,
-		Path:         req.Path,
-		Body:         req.Body,
+		UserID:              userID,
+		ProjectID:           req.ProjectID,
+		Session:             sess,
+		SessionTitle:        title,
+		DocumentID:          req.DocumentID,
+		Provider:            req.Provider,
+		Path:                req.Path,
+		Body:                req.Body,
 		AuthorizationHeader: c.GetHeader("Authorization"),
 		WriteBack: service.ChapterWriteBack{
 			SetStatus:  req.WriteBack.SetStatus,
@@ -338,15 +340,15 @@ func (h *WorkflowHandler) RunChapterRewrite(c *gin.Context) {
 
 	title := "章节重写 " + time.Now().Format("2006-01-02 15:04")
 	result, err := h.workflowService.RunChapterRewrite(service.ChapterRewriteRequest{
-		UserID:       userID,
-		ProjectID:    req.ProjectID,
-		Session:      sess,
-		SessionTitle: title,
-		DocumentID:   req.DocumentID,
-		RewriteMode:  req.RewriteMode,
-		Provider:     req.Provider,
-		Path:         req.Path,
-		Body:         req.Body,
+		UserID:              userID,
+		ProjectID:           req.ProjectID,
+		Session:             sess,
+		SessionTitle:        title,
+		DocumentID:          req.DocumentID,
+		RewriteMode:         req.RewriteMode,
+		Provider:            req.Provider,
+		Path:                req.Path,
+		Body:                req.Body,
 		AuthorizationHeader: c.GetHeader("Authorization"),
 		WriteBack: service.ChapterWriteBack{
 			Mode:      req.WriteBack.Mode,
@@ -408,22 +410,22 @@ func (h *WorkflowHandler) RunChapterBatch(c *gin.Context) {
 	for _, item := range req.Items {
 		items = append(items, service.ChapterBatchItem{
 			ClientDocumentID: item.ClientDocumentID,
-			Title:      item.Title,
-			OrderIndex: item.OrderIndex,
-			Outline:    item.Outline,
+			Title:            item.Title,
+			OrderIndex:       item.OrderIndex,
+			Outline:          item.Outline,
 		})
 	}
 
 	result, err := h.workflowService.RunChapterBatch(service.ChapterBatchRequest{
-		UserID:       userID,
-		ProjectID:    req.ProjectID,
-		Session:      sess,
-		SessionTitle: title,
-		VolumeID:     req.VolumeID,
-		Items:        items,
-		Provider:     req.Provider,
-		Path:         req.Path,
-		BodyTemplate: req.BodyTemplate,
+		UserID:              userID,
+		ProjectID:           req.ProjectID,
+		Session:             sess,
+		SessionTitle:        title,
+		VolumeID:            req.VolumeID,
+		Items:               items,
+		Provider:            req.Provider,
+		Path:                req.Path,
+		BodyTemplate:        req.BodyTemplate,
 		AuthorizationHeader: c.GetHeader("Authorization"),
 		WriteBack: service.ChapterWriteBack{
 			SetStatus:  req.WriteBack.SetStatus,
@@ -482,16 +484,16 @@ func (h *WorkflowHandler) runWorkflow(c *gin.Context, formatType string, default
 	}
 
 	runReq := service.RunWorkflowRequest{
-		UserID:       userID,
-		ProjectID:    req.ProjectID,
-		SessionTitle: title,
-		Mode:         formatType,
-		StepTitle:    stepTitle,
-		FormatType:   formatType,
-		Provider:     req.Provider,
-		Path:         req.Path,
-		Body:         req.Body,
-		Session:      sess,
+		UserID:              userID,
+		ProjectID:           req.ProjectID,
+		SessionTitle:        title,
+		Mode:                formatType,
+		StepTitle:           stepTitle,
+		FormatType:          formatType,
+		Provider:            req.Provider,
+		Path:                req.Path,
+		Body:                req.Body,
+		Session:             sess,
 		AuthorizationHeader: c.GetHeader("Authorization"),
 	}
 
@@ -506,5 +508,120 @@ func (h *WorkflowHandler) runWorkflow(c *gin.Context, formatType string, default
 		"step":    result.Step,
 		"content": result.Content,
 		"raw":     result.Raw,
+	})
+}
+
+// RunWorkflowStreamRequest 流式工作流请求
+type RunWorkflowStreamRequest struct {
+	SessionID uint   `json:"session_id" binding:"required"`
+	StepTitle string `json:"step_title"`
+	Provider  string `json:"provider" binding:"required"`
+	Path      string `json:"path" binding:"required"`
+	Body      string `json:"body" binding:"required"`
+}
+
+// RunWorkflowStream 执行流式工作流
+func (h *WorkflowHandler) RunWorkflowStream(c *gin.Context) {
+	var req RunWorkflowStreamRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
+		return
+	}
+
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "Unauthorized")
+		return
+	}
+
+	// 验证 session 所有权
+	session, err := h.sessionService.GetSession(req.SessionID)
+	if err != nil {
+		response.Fail(c, errors.CodeSessionNotFound, "Session not found")
+		return
+	}
+	if session.UserID != userID {
+		response.Fail(c, errors.CodeForbidden, "Access denied")
+		return
+	}
+
+	stepTitle := req.StepTitle
+	if stepTitle == "" {
+		stepTitle = "流式生成 " + time.Now().Format("2006-01-02 15:04")
+	}
+
+	// 执行流式工作流
+	result, err := h.workflowStreamService.ExecuteWorkflowStream(service.ExecuteWorkflowStreamRequest{
+		SessionID: req.SessionID,
+		StepTitle: stepTitle,
+		Provider:  req.Provider,
+		Path:      req.Path,
+		Body:      req.Body,
+		Timeout:   30 * time.Second,
+	})
+
+	if err != nil {
+		response.Fail(c, errors.CodeInternalError, "Failed to start stream")
+		return
+	}
+
+	response.SuccessWithData(c, gin.H{
+		"step_id":    result.StepID,
+		"session_id": result.SessionID,
+		"message":    result.Message,
+	})
+}
+
+// FunctionCallingRequest Function Calling 请求
+type FunctionCallingRequest struct {
+	SessionID uint                     `json:"session_id" binding:"required"`
+	Prompt    string                   `json:"prompt" binding:"required"`
+	MaxTurns  int                      `json:"max_turns"`
+	Tools     []map[string]interface{} `json:"tools"`
+}
+
+// RunFunctionCalling 执行 Function Calling 工作流
+func (h *WorkflowHandler) RunFunctionCalling(c *gin.Context) {
+	var req FunctionCallingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, errors.CodeInvalidParams, "Invalid request body")
+		return
+	}
+
+	userID := getUserIDFromContext(c)
+	if userID == 0 {
+		response.Fail(c, errors.CodeUnauthorized, "Unauthorized")
+		return
+	}
+
+	// 验证 session 所有权
+	session, err := h.sessionService.GetSession(req.SessionID)
+	if err != nil {
+		response.Fail(c, errors.CodeSessionNotFound, "Session not found")
+		return
+	}
+	if session.UserID != userID {
+		response.Fail(c, errors.CodeForbidden, "Access denied")
+		return
+	}
+
+	// 执行 Function Calling 循环
+	fcService := service.NewFunctionCallingService(h.sessionService, nil) // TODO: 注入 jobRepo
+	err = fcService.ExecuteFunctionCallingLoop(c.Request.Context(), service.ExecuteFunctionCallingLoopRequest{
+		SessionID:     req.SessionID,
+		InitialPrompt: req.Prompt,
+		MaxTurns:      req.MaxTurns,
+		Tools:         req.Tools,
+		UserID:        userID,
+	})
+
+	if err != nil {
+		response.Fail(c, errors.CodeInternalError, "Function calling failed: "+err.Error())
+		return
+	}
+
+	response.SuccessWithData(c, gin.H{
+		"session_id": req.SessionID,
+		"message":    "Function calling completed",
 	})
 }

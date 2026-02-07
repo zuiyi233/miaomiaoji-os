@@ -1,0 +1,20 @@
+[
+  {
+    "name": "健康检查",
+    "success": true,
+    "details": "服务运行正常",
+    "timestamp": "2026-02-06T00:55:28.5340584+08:00"
+  },
+  {
+    "name": "用户注册",
+    "success": true,
+    "details": "用户名: testuser_1770310528",
+    "timestamp": "2026-02-06T00:55:28.59356+08:00"
+  },
+  {
+    "name": "用户登录",
+    "success": false,
+    "details": "响应格式错误",
+    "timestamp": "2026-02-06T00:55:28.5945584+08:00"
+  }
+]

@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"novel-agent-os-backend/internal/config"
 	"novel-agent-os-backend/internal/repository"
+	"novel-agent-os-backend/pkg/logger"
 )
 
 // AIModelService AI模型服务接口
@@ -35,7 +37,7 @@ func NewAIModelService(configRepo repository.AIConfigRepository) AIModelService 
 	}
 }
 
-// ListModels 获取模型列表
+// ListModels 获取模型列表（带缓存兜底）
 func (s *aiModelService) ListModels(provider string) ([]ModelInfo, error) {
 	cleanProvider := strings.TrimSpace(provider)
 	if cleanProvider == "" {
@@ -47,18 +49,81 @@ func (s *aiModelService) ListModels(provider string) ([]ModelInfo, error) {
 		return nil, err
 	}
 
+	cacheTTL := config.Get().AI.ModelsCacheTTL
+	useStaleCacheOnError := config.Get().AI.UseStaleCacheOnError
+
+	// 检查缓存是否有效
+	if s.configRepo.IsCacheValid(cleanProvider, cfg.BaseURL, cfg.APIKey, cacheTTL) {
+		logger.Debug("模型缓存命中",
+			logger.String("provider", cleanProvider))
+
+		cachedModels, err := s.configRepo.GetModelsCache(cleanProvider, cfg.BaseURL, cfg.APIKey)
+		if err == nil && len(cachedModels) > 0 {
+			models := make([]ModelInfo, 0, len(cachedModels))
+			for _, item := range cachedModels {
+				models = append(models, ModelInfo{
+					ID:       item.ID,
+					Name:     item.ID,
+					Provider: cleanProvider,
+				})
+			}
+			return models, nil
+		}
+		logger.Warn("缓存读取失败，尝试请求上游",
+			logger.String("provider", cleanProvider),
+			logger.Err(err))
+	} else {
+		logger.Info("模型缓存已过期，请求上游",
+			logger.String("provider", cleanProvider))
+	}
+
+	// 请求上游API
 	models, err := fetchModelsFromProvider(cleanProvider, cfg.BaseURL, cfg.APIKey)
 	if err != nil {
+		logger.Warn("上游请求失败",
+			logger.String("provider", cleanProvider),
+			logger.Err(err))
+
+		// 上游失败时尝试使用过期缓存
+		if useStaleCacheOnError {
+			cachedModels, cacheErr := s.configRepo.GetModelsCache(cleanProvider, cfg.BaseURL, cfg.APIKey)
+			if cacheErr == nil && len(cachedModels) > 0 {
+				logger.Info("使用过期缓存兜底",
+					logger.String("provider", cleanProvider),
+					logger.Int("models_count", len(cachedModels)))
+
+				models := make([]ModelInfo, 0, len(cachedModels))
+				for _, item := range cachedModels {
+					models = append(models, ModelInfo{
+						ID:       item.ID,
+						Name:     item.ID,
+						Provider: cleanProvider,
+					})
+				}
+				return models, nil
+			}
+			logger.Error("无可用缓存",
+				logger.String("provider", cleanProvider),
+				logger.Err(cacheErr))
+		}
+
 		return nil, err
 	}
 
+	// 更新缓存
 	cacheModels := make([]repository.ProviderModelInfo, 0, len(models))
 	for _, item := range models {
 		cacheModels = append(cacheModels, repository.ProviderModelInfo{ID: item.ID})
 	}
 
 	if err := s.configRepo.UpdateModelsCache(cleanProvider, cfg.BaseURL, cfg.APIKey, cacheModels); err != nil {
-		return nil, err
+		logger.Warn("更新缓存失败",
+			logger.String("provider", cleanProvider),
+			logger.Err(err))
+	} else {
+		logger.Debug("缓存已更新",
+			logger.String("provider", cleanProvider),
+			logger.Int("models_count", len(models)))
 	}
 
 	return models, nil

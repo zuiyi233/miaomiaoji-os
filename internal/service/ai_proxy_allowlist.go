@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/url"
 	"strings"
+
+	"novel-agent-os-backend/internal/config"
 )
 
 // ValidateAIProxyTarget 校验 provider+path 是否允许被代理到上游。
@@ -54,9 +56,23 @@ func ValidateAIProxyTarget(provider, baseURL, path string) error {
 			return errors.New("invalid base url")
 		}
 		host := base.Hostname()
-		if host != "localhost" && host != "127.0.0.1" && host != "::1" {
-			// 生产环境禁用明文 http
-			return errors.New("invalid base url")
+		
+		// 获取配置
+		cfg := config.Get()
+		
+		// 开发环境或显式允许不安全HTTP：允许内网HTTP地址
+		if cfg.App.Env == "development" || cfg.AI.AllowInsecureHTTP {
+			// 开发模式或配置允许时，允许内网地址
+			if isPrivateIP(host) || host == "localhost" || host == "127.0.0.1" || host == "::1" {
+				// 允许通过
+			} else {
+				return errors.New("invalid base url")
+			}
+		} else {
+			// 生产环境且未显式允许：仅允许localhost的HTTP
+			if host != "localhost" && host != "127.0.0.1" && host != "::1" {
+				return errors.New("invalid base url")
+			}
 		}
 	}
 
@@ -108,4 +124,14 @@ func ValidateAIProxyTarget(provider, baseURL, path string) error {
 	}
 
 	return errors.New("path not allowed")
+}
+
+// isPrivateIP 判断是否为内网IP地址
+func isPrivateIP(host string) bool {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	// 使用Go标准库的IsPrivate方法
+	return ip.IsPrivate()
 }

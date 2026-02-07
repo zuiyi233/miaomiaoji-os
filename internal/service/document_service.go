@@ -21,6 +21,9 @@ type DocumentService interface {
 	LinkEntity(id, entityID uint, refType string, metadata map[string]interface{}) error
 	UnlinkEntity(id, entityID uint) error
 	GetEntityRefs(id uint) ([]*model.DocumentEntityRef, error)
+	AppendChapter(documentID uint, chapterTitle, content string) error
+	UpdateChapter(documentID uint, chapterID string, content string) error
+	AppendContent(documentID uint, content string) error
 }
 
 // documentService 文档服务实现
@@ -285,4 +288,48 @@ func (s *documentService) GetEntityRefs(id uint) ([]*model.DocumentEntityRef, er
 	}
 
 	return s.documentRepo.GetEntityRefs(id)
+}
+
+// AppendChapter 追加章节
+func (s *documentService) AppendChapter(documentID uint, chapterTitle, content string) error {
+	document, err := s.documentRepo.FindByID(documentID)
+	if err != nil {
+		return errors.ErrDocumentNotFound
+	}
+
+	// 构建章节内容
+	chapterContent := "\n\n## " + chapterTitle + "\n\n" + content
+
+	// 追加到文档内容
+	document.Content += chapterContent
+
+	if err := s.documentRepo.Update(document); err != nil {
+		logger.Error("追加章节失败", logger.Err(err))
+		return errors.ErrInternalServer
+	}
+
+	return nil
+}
+
+// UpdateChapter 更新章节内容（暂不实现复杂的章节定位逻辑）
+func (s *documentService) UpdateChapter(documentID uint, chapterID string, content string) error {
+	// 简化实现：直接追加内容
+	return s.AppendContent(documentID, content)
+}
+
+// AppendContent 追加内容到文档
+func (s *documentService) AppendContent(documentID uint, content string) error {
+	document, err := s.documentRepo.FindByID(documentID)
+	if err != nil {
+		return errors.ErrDocumentNotFound
+	}
+
+	document.Content += content
+
+	if err := s.documentRepo.Update(document); err != nil {
+		logger.Error("追加内容失败", logger.Err(err))
+		return errors.ErrInternalServer
+	}
+
+	return nil
 }

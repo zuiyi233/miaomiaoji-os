@@ -1,0 +1,74 @@
+[
+  {
+    "name": "健康检查",
+    "success": true,
+    "details": "服务运行正常",
+    "timestamp": "2026-02-06T01:10:48.9520655+08:00"
+  },
+  {
+    "name": "用户登录",
+    "success": true,
+    "details": "Token获取成功 (admin)",
+    "timestamp": "2026-02-06T01:10:49.0110646+08:00"
+  },
+  {
+    "name": "更新供应商配置",
+    "success": true,
+    "details": "Provider: zhipu",
+    "timestamp": "2026-02-06T01:10:49.0235664+08:00"
+  },
+  {
+    "name": "获取供应商配置",
+    "success": true,
+    "details": "BaseURL: http://192.168.32.15:39999/v1",
+    "timestamp": "2026-02-06T01:10:49.0245658+08:00"
+  },
+  {
+    "name": "测试供应商连接",
+    "success": false,
+    "details": "连接失败: provider request failed: 401 Unauthorized",
+    "timestamp": "2026-02-06T01:10:49.0275673+08:00"
+  },
+  {
+    "name": "获取模型列表",
+    "success": false,
+    "details": "模型列表为空或获取失败",
+    "timestamp": "2026-02-06T01:10:49.0305664+08:00"
+  },
+  {
+    "name": "AI普通对话",
+    "success": false,
+    "details": "响应中没有choices",
+    "timestamp": "2026-02-06T01:10:49.0315678+08:00"
+  },
+  {
+    "name": "AI流式对话",
+    "success": true,
+    "details": "流式响应接收成功",
+    "timestamp": "2026-02-06T01:10:49.0330664+08:00"
+  },
+  {
+    "name": "创建项目",
+    "success": true,
+    "details": "ProjectID: 3",
+    "timestamp": "2026-02-06T01:10:49.0420684+08:00"
+  },
+  {
+    "name": "世界构建工作流",
+    "success": false,
+    "details": "Invalid request body",
+    "timestamp": "2026-02-06T01:10:49.0435702+08:00"
+  },
+  {
+    "name": "无效供应商处理",
+    "success": true,
+    "details": "正确返回错误",
+    "timestamp": "2026-02-06T01:10:49.0450651+08:00"
+  },
+  {
+    "name": "未授权访问处理",
+    "success": false,
+    "details": "应该拒绝未授权请求",
+    "timestamp": "2026-02-06T01:10:49.0450651+08:00"
+  }
+]

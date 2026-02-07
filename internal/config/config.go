@@ -50,8 +50,11 @@ type RateLimitConfig struct {
 }
 
 type AIConfig struct {
-	DefaultProvider string `mapstructure:"default_provider"`
-	ProvidersPath   string `mapstructure:"providers_path"`
+	DefaultProvider      string `mapstructure:"default_provider"`
+	ProvidersPath        string `mapstructure:"providers_path"`
+	AllowInsecureHTTP    bool   `mapstructure:"allow_insecure_http"`
+	ModelsCacheTTL       int    `mapstructure:"models_cache_ttl"`
+	UseStaleCacheOnError bool   `mapstructure:"use_stale_cache_on_error"`
 }
 
 var cfgMu sync.RWMutex
@@ -113,6 +116,9 @@ func Init(configPath string, configName string) error {
 	}
 	if loaded.AI.ProvidersPath == "" {
 		loaded.AI.ProvidersPath = "./configs/providers"
+	}
+	if loaded.AI.ModelsCacheTTL == 0 {
+		loaded.AI.ModelsCacheTTL = 3600
 	}
 
 	cfgMu.Lock()

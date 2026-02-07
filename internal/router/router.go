@@ -83,7 +83,12 @@ func Setup() *gin.Engine {
 	jobHandler := handler.NewJobHandler(jobService)
 
 	workflowService := service.NewWorkflowService(aiConfigService, sessionService, documentService, pluginService, jobService)
-	workflowHandler := handler.NewWorkflowHandler(workflowService, sessionService, documentService, projectService, volumeService)
+	workflowStreamService := service.NewWorkflowStreamService(aiConfigService, sessionRepo)
+	workflowHandler := handler.NewWorkflowHandler(workflowService, workflowStreamService, sessionService, documentService, projectService, volumeService)
+
+	// AgentWriter 依赖
+	agentWriterService := service.NewAgentWriterService(sessionService, documentService, aiConfigService)
+	agentWriterHandler := handler.NewAgentWriterHandler(agentWriterService)
 
 	pluginHandler := handler.NewPluginHandler(pluginService, jobService)
 
@@ -301,6 +306,8 @@ func Setup() *gin.Engine {
 		{
 			workflows.POST("/world", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunWorld)
 			workflows.POST("/polish", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunPolish)
+			workflows.POST("/stream", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunWorkflowStream)
+			workflows.POST("/function-calling", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunFunctionCalling)
 
 			wizard := workflows.Group("/wizard")
 			{
@@ -316,6 +323,14 @@ func Setup() *gin.Engine {
 				chapters.POST("/rewrite", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunChapterRewrite)
 				chapters.POST("/batch", middleware.JWTAuth(), handler.RequireAIAccess(userService), workflowHandler.RunChapterBatch)
 			}
+		}
+
+		// AgentWriter 路由
+		agentWriter := v1.Group("/agent-writer")
+		{
+			agentWriter.POST("/start", middleware.JWTAuth(), handler.RequireAIAccess(userService), agentWriterHandler.StartWritingTask)
+			agentWriter.POST("/cancel", middleware.JWTAuth(), agentWriterHandler.CancelWritingTask)
+			agentWriter.GET("/status/:session_id", middleware.JWTAuth(), agentWriterHandler.GetWritingTaskStatus)
 		}
 
 		// 结算路由

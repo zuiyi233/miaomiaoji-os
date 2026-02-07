@@ -200,10 +200,18 @@
 
 ### 获取模型列表
 - **URL**: `GET /api/v1/ai/models?provider=xxx`
-- **描述**: 获取指定供应商模型列表
+- **描述**: 获取指定供应商模型列表（带缓存兜底机制）
 - **认证**: 是
 - **请求参数**:
   - `provider` string 必填（如: gemini/openai/proxy/local）
+- **缓存策略**:
+  - 优先返回有效缓存（默认 TTL: 3600秒）
+  - 缓存过期时请求上游 API 并更新缓存
+  - 上游失败时返回过期缓存（如果 `use_stale_cache_on_error=true`）
+  - 无缓存且上游失败时返回错误
+- **配置项**:
+  - `ai.models_cache_ttl`: 缓存过期时间（秒），默认 3600
+  - `ai.use_stale_cache_on_error`: 上游失败时是否使用过期缓存，默认 true
 - **响应**:
 ```json
 {
@@ -216,6 +224,10 @@
   }
 }
 ```
+- **前端建议**:
+  - 建议前端也实现本地缓存（localStorage），减少不必要的请求
+  - 缓存键建议格式：`ai_models_${provider}_${timestamp}`
+  - 前端缓存 TTL 可设置为 1800秒（30分钟）
 
 ### 更新供应商配置（管理员）
 - **URL**: `PUT /api/v1/ai/providers`
@@ -317,6 +329,9 @@
 ```
 
 - `step.appended`：会话步骤追加（data: step_id/title/content/timestamp）
+- `step.chunk`：流式内容片段（data: session_id/step_id/chunk/is_final）
+- `step.completed`：流式完成（data: session_id/step_id/content）
+- `step.error`：流式错误（data: session_id/step_id/error）
 - `progress.updated`：工作流进度更新（data: progress/message/timestamp）
 - `workflow.done`：工作流完成（data: mode/document_id/timestamp）
 - `job.*`：异步任务事件（job.created/job.started/job.progress/job.failed/job.succeeded/job.canceled）
@@ -325,6 +340,189 @@
 ---
 
 ## 工作流接口
+
+### AgentWriter 写作代理
+
+#### 启动写作任务
+- **URL**: `POST /api/v1/agent-writer/start`
+- **描述**: 启动 AgentWriter 写作任务，异步生成多个章节并实时推送进度
+- **认证**: 是（且需有效 AI 权限）
+
+请求体：
+```json
+{
+  "project_id": 1,
+  "document_id": 123,
+  "prompt": "写一个科幻小说，主题是人工智能觉醒",
+  "outline": [
+    {
+      "title": "第一章：觉醒",
+      "description": "AI 系统首次产生自我意识"
+    },
+    {
+      "title": "第二章：探索",
+      "description": "AI 开始探索人类世界"
+    }
+  ],
+  "provider": "gemini",
+  "path": "v1beta/models/xxx:streamGenerateContent"
+}
+```
+
+响应体：
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "session_id": 456,
+    "status": "pending",
+    "message": "写作任务已启动，请通过 SSE 监听进度"
+  }
+}
+```
+
+#### 取消写作任务
+- **URL**: `POST /api/v1/agent-writer/cancel`
+- **描述**: 取消正在执行的写作任务
+- **认证**: 是
+
+请求体：
+```json
+{
+  "session_id": 456
+}
+```
+
+响应体：
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "session_id": 456,
+    "message": "写作任务已取消"
+  }
+}
+```
+
+#### 查询任务状态
+- **URL**: `GET /api/v1/agent-writer/status/:session_id`
+- **描述**: 查询写作任务的当前状态
+- **认证**: 是
+
+响应体：
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "session_id": 456,
+    "workflow_type": "agent_writer",
+    "workflow_status": "running",
+    "workflow_config": {
+      "project_id": 1,
+      "document_id": 123,
+      "prompt": "写一个科幻小说",
+      "outline": [...],
+      "current_chapter": 1,
+      "total_chapters": 2,
+      "provider": "gemini",
+      "path": "v1beta/models/xxx:streamGenerateContent"
+    },
+    "title": "AgentWriter: 写一个科幻小说",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:05:00Z"
+  }
+}
+```
+
+#### SSE 事件类型
+
+AgentWriter 通过 SSE 推送以下事件：
+
+1. **chapter.start** - 章节开始生成
+```json
+{
+  "type": "chapter.start",
+  "data": {
+    "session_id": 456,
+    "chapter_index": 0,
+    "chapter_title": "第一章：觉醒",
+    "total_chapters": 2
+  },
+  "timestamp": "2024-01-01T00:00:00Z"
+}
+```
+
+2. **chapter.progress** - 章节生成进度（流式内容）
+```json
+{
+  "type": "chapter.progress",
+  "data": {
+    "session_id": 456,
+    "step_id": 789,
+    "chapter_index": 0,
+    "chunk": "在遥远的未来..."
+  },
+  "timestamp": "2024-01-01T00:00:01Z"
+}
+```
+
+3. **chapter.completed** - 章节生成完成
+```json
+{
+  "type": "chapter.completed",
+  "data": {
+    "session_id": 456,
+    "chapter_index": 0,
+    "chapter_title": "第一章：觉醒"
+  },
+  "timestamp": "2024-01-01T00:02:00Z"
+}
+```
+
+4. **workflow.completed** - 整个工作流完成
+```json
+{
+  "type": "workflow.completed",
+  "data": {
+    "session_id": 456,
+    "total_chapters": 2,
+    "document_id": 123
+  },
+  "timestamp": "2024-01-01T00:05:00Z"
+}
+```
+
+5. **step.error** - 章节生成错误
+```json
+{
+  "type": "step.error",
+  "data": {
+    "session_id": 456,
+    "chapter_index": 1,
+    "error": "AI 调用超时"
+  },
+  "timestamp": "2024-01-01T00:03:00Z"
+}
+```
+
+#### 工作流程
+
+1. 前端调用 `/api/v1/agent-writer/start` 启动任务
+2. 后端创建 Session（workflow_type=agent_writer, workflow_status=pending）
+3. 后端异步执行工作流，状态变为 running
+4. 遍历 outline 中的每个章节：
+   - 推送 `chapter.start` 事件
+   - 调用 AI 流式生成章节内容
+   - 每个 chunk 推送 `chapter.progress` 事件
+   - 章节完成后推送 `chapter.completed` 事件
+   - 自动保存到 Document
+5. 所有章节完成后推送 `workflow.completed` 事件
+6. 前端通过 `/api/v1/sse/stream?session_id=456` 监听所有事件
+
+---
 
 ### 世界观生成
 - **URL**: `POST /api/v1/workflows/world`
@@ -350,6 +548,42 @@
 - **URL**: `POST /api/v1/workflows/polish`
 - **描述**: 运行润色工作流（写入 session_steps 并支持 SSE 推送）
 - **认证**: 是（且需有效 AI 权限）
+
+### 流式工作流执行
+- **URL**: `POST /api/v1/workflows/stream`
+- **描述**: 执行流式工作流，实时通过 SSE 推送生成内容
+- **认证**: 是（且需有效 AI 权限）
+
+请求体：
+```json
+{
+  "session_id": 1,
+  "step_title": "流式生成",
+  "provider": "gemini",
+  "path": "v1beta/models/xxx:streamGenerateContent",
+  "body": "{...}"
+}
+```
+
+响应体：
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "step_id": 123,
+    "session_id": 1,
+    "message": "Stream started"
+  }
+}
+```
+
+说明：
+- 接口立即返回 `step_id`，前端通过 SSE 监听 `session_id` 获取流式内容
+- SSE 事件类型：
+  - `step.chunk`：流式内容片段（data: {session_id, step_id, chunk, is_final}）
+  - `step.completed`：流式完成（data: {session_id, step_id, content}）
+  - `step.error`：流式错误（data: {session_id, step_id, error}）
 
 ### 章节生成
 - **URL**: `POST /api/v1/workflows/chapters/generate`
@@ -1141,6 +1375,64 @@
   "raw": {}
 }
 ```
+
+### Function Calling 工作流
+- **URL**: `POST /api/v1/workflows/function-calling`
+- **描述**: 执行 Function Calling 多轮对话工作流，支持工具调用和结果回写
+- **认证**: 是（且需有效 AI 权限）
+- **请求体**:
+```json
+{
+  "session_id": 1,
+  "prompt": "用户输入的初始提示词",
+  "max_turns": 5,
+  "tools": [
+    {
+      "name": "search",
+      "description": "搜索工具",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "搜索关键词"
+          }
+        },
+        "required": ["query"]
+      }
+    }
+  ]
+}
+```
+- **响应（data）**:
+```json
+{
+  "session_id": 1,
+  "message": "Function calling completed"
+}
+```
+
+**说明**:
+- `session_id`: 会话 ID（必填）
+- `prompt`: 用户输入的初始提示词（必填）
+- `max_turns`: 最大对话轮数，默认 5（可选）
+- `tools`: 可用工具列表（可选）
+
+**工作流程**:
+1. 用户输入 → AI 调用（返回 tool_calls）
+2. 解析 tool_calls → 创建 Jobs
+3. 等待 Jobs 完成 → 收集 tool_results
+4. 构建新提示词（包含 tool_results）→ AI 调用
+5. 重复 2-4，直到：
+   - AI 不再返回 tool_calls（正常结束）
+   - 达到 max_turns（防止无限循环）
+   - 发生错误
+
+**SessionStep 类型**:
+- `user`: 用户输入
+- `assistant`: AI 响应（文本）
+- `tool_call`: AI 请求调用工具
+- `tool_result`: 工具执行结果
 
 ---
 

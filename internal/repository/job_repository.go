@@ -8,6 +8,7 @@ import (
 
 type JobRepository interface {
 	Create(job *model.Job) error
+	GetByID(id uint) (*model.Job, error)
 	GetByUUID(jobUUID string) (*model.Job, error)
 	Update(job *model.Job) error
 }
@@ -22,6 +23,14 @@ func NewJobRepository(db *gorm.DB) JobRepository {
 
 func (r *jobRepository) Create(job *model.Job) error {
 	return r.db.Create(job).Error
+}
+
+func (r *jobRepository) GetByID(id uint) (*model.Job, error) {
+	var job model.Job
+	if err := r.db.First(&job, id).Error; err != nil {
+		return nil, err
+	}
+	return &job, nil
 }
 
 func (r *jobRepository) GetByUUID(jobUUID string) (*model.Job, error) {

@@ -44,3 +44,6 @@ rate_limit:
 ai:
   default_provider: gemini
   providers_path: "./configs/providers"
+  allow_insecure_http: false
+  models_cache_ttl: 3600
+  use_stale_cache_on_error: true
